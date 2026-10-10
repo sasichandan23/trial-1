@@ -66,14 +66,50 @@ since those are the ones that actually resolve.
 
 ## 3. Publish to PyPI
 
-Pushing to GitHub does **not** publish the package. PyPI is a separate system and has to
-be uploaded to explicitly. Until that happens, `pip install memolint` fails and installing
-still means cloning this repo.
+Pushing to GitHub does **not** publish the package. PyPI is a separate system. Until it is
+uploaded, `pip install memolint` fails and installing still means cloning this repo.
 
-The name `memolint` is free. Claim it:
+The name `memolint` is free. Two routes.
 
-1. Make a PyPI account and an API token at https://pypi.org/manage/account/token/
-2. From the repo root:
+### Recommended: no token anywhere
+
+A human does steps 1 and 2 in a browser, once. After that, releasing is a git tag, which
+an agent can run safely because no credential exists.
+
+1. Create a PyPI account. Two-factor authentication is mandatory, so this part cannot be
+   automated.
+2. At https://pypi.org/manage/account/publishing add a **pending publisher**. Pending
+   publishers exist precisely for projects that do not exist yet:
+
+   | Field | Value |
+   |---|---|
+   | PyPI project name | `memolint` |
+   | Owner | `WaifuPuller` |
+   | Repository name | `MemoLint` |
+   | Workflow name | `publish.yml` |
+   | Environment name | `pypi` |
+
+3. In GitHub, Settings then Environments, create an environment named exactly `pypi`.
+4. Release:
+
+   ```bash
+   git tag v0.1.0 && git push --tags
+   ```
+
+GitHub proves its own identity to PyPI over OIDC and the package publishes. No token is
+created, stored or pasted anywhere.
+
+**Three things that break it, all silent:**
+
+- The environment name must match on both sides. The workflow sets `environment: pypi`, so
+  PyPI must have `pypi` in that field and GitHub must have an environment of that name. If
+  you leave it blank on PyPI, remove it from the workflow too.
+- Renaming the repository, moving it to another owner, or renaming `publish.yml` breaks
+  the trust relationship.
+- A pending publisher does not reserve the name. If someone else registers `memolint`
+  before your first publish, it is invalidated.
+
+### Faster but uses a token
 
 ```bash
 pip install build twine
@@ -81,9 +117,12 @@ python -m build --wheel --sdist
 python -m twine upload dist/*
 ```
 
-Username is `__token__`, password is the token including the `pypi-` prefix.
+Username `__token__`, password a token from https://pypi.org/manage/account/token/.
 
-After that, anyone can run:
+Do this one yourself rather than handing the token to an agent. The token has permanent
+publish rights over the package name.
+
+### What it unlocks either way
 
 ```bash
 pipx install memolint
@@ -91,7 +130,3 @@ claude mcp add memolint -- uvx --from memolint memolint-mcp
 ```
 
 That one line is the answer when someone asks how to run it on their own laptop.
-
-Releases after the first one are automatic: `.github/workflows/publish.yml` publishes on a
-version tag, using Trusted Publishing so no token lives in the repository. It needs a
-one-time configuration on pypi.org, described in `docs/PUBLISHING.md`.
