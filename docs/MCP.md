@@ -93,6 +93,21 @@ They all take the same shape in their own config file:
 Antigravity supports MCP, but confirm the current config file location in its docs before
 relying on this. The server itself needs no change; stdio is stdio.
 
+## Who sees what
+
+The server runs locally and stores nothing. The memory lives in a Hindsight bank, and the
+API key decides which bank you reach. Everything else follows from that.
+
+| Situation | What happens |
+|---|---|
+| One person, own key | Their own bank. Nobody else can read it, and installing from a public repo exposes no one else's memory. |
+| A team sharing memory | Every member uses a key from the **same** Hindsight account, so they all reach one bank. A rule one person teaches shows up in everyone's next review. |
+| Code that cannot leave the building | Self-host Hindsight and point everyone at that URL. With a local model, nothing reaches a third party. |
+
+Separate Hindsight accounts mean separate banks even for the same repository, because the
+bank id is scoped to the account behind the key. Memory is shared when the Hindsight
+instance is shared, not when the tool is installed.
+
 ## Which repository does it use
 
 In order: the `repo` argument on the tool call, then `MEMOLINT_REPO` in the environment,

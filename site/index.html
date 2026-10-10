@@ -557,6 +557,33 @@ LLM_PROVIDER=ollama</pre></div>
   </div>
 </section>
 
+<section class="wrap" id="sharing">
+  <div class="head narrow">
+    <span class="kicker">Who sees what</span>
+    <h2>Your memory is yours</h2>
+    <p class="lede">The server runs on your machine and stores nothing. The memory lives in a
+      Hindsight bank, and the key you use decides which bank you reach. That one fact answers
+      most questions about privacy and sharing.</p>
+  </div>
+  <div class="cols">
+    <div class="tile"><div class="ic" style="background:#0d2a3d;color:var(--sky)">1</div>
+      <h3>Trying it alone</h3>
+      <p>Your own free key, your own empty bank. It learns from you and nobody else can read
+        it. Installing from a public repo never exposes anyone else's memory.</p></div>
+    <div class="tile"><div class="ic" style="background:var(--go-dim);color:var(--go)">N</div>
+      <h3>Sharing across a team</h3>
+      <p>Everyone uses a key from the <b>same</b> Hindsight account. One rule your colleague
+        teaches it shows up in your next review, because you are both reaching one bank.</p></div>
+    <div class="tile"><div class="ic" style="background:#241d3d;color:var(--violet)">⌂</div>
+      <h3>Code that cannot leave</h3>
+      <p>Run Hindsight yourself in Docker and point everyone at that URL. Pair it with a local
+        model and nothing touches a third party at all.</p></div>
+  </div>
+  <div class="aside" style="margin-top:26px;max-width:72ch">Separate accounts mean separate
+    banks, even when the repository is the same. Memory is shared because the Hindsight
+    instance is shared, not because the tool is installed.</div>
+</section>
+
 <section class="wrap" id="team">
   <div class="head narrow">
     <span class="kicker">Built by</span>
