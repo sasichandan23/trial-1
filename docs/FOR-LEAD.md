@@ -64,7 +64,34 @@ It will be in `docs/FORM-LINKS.md` or `docs/SUBMISSION.md`, the only two files t
 between the repos. Keep the version with `sasi_chandan` and `sasi-chandan` inside the URLs,
 since those are the ones that actually resolve.
 
-## 3. Optional: publish to PyPI
+## 3. Publish to PyPI
 
-Turns installation from "clone this repo" into one line. You need a PyPI account and a
-token. Steps are in `docs/PUBLISHING.md`, about three minutes.
+Pushing to GitHub does **not** publish the package. PyPI is a separate system and has to
+be uploaded to explicitly. Until that happens, `pip install memolint` fails and installing
+still means cloning this repo.
+
+The name `memolint` is free. Claim it:
+
+1. Make a PyPI account and an API token at https://pypi.org/manage/account/token/
+2. From the repo root:
+
+```bash
+pip install build twine
+python -m build --wheel --sdist
+python -m twine upload dist/*
+```
+
+Username is `__token__`, password is the token including the `pypi-` prefix.
+
+After that, anyone can run:
+
+```bash
+pipx install memolint
+claude mcp add memolint -- uvx --from memolint memolint-mcp
+```
+
+That one line is the answer when someone asks how to run it on their own laptop.
+
+Releases after the first one are automatic: `.github/workflows/publish.yml` publishes on a
+version tag, using Trusted Publishing so no token lives in the repository. It needs a
+one-time configuration on pypi.org, described in `docs/PUBLISHING.md`.
