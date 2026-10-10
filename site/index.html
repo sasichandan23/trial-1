@@ -3,464 +3,621 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>MemoLint — a code reviewer that remembers</title>
-<meta name="description" content="A code reviewer that remembers your team's conventions, rejected suggestions and past incidents. Built on Hindsight agent memory. Runs on free tiers.">
-<meta property="og:title" content="MemoLint">
-<meta property="og:description" content="Same model, same diff, two different reviews. One of them has been here before.">
+<title>MemoLint — Code review that remembers your team</title>
+<meta name="description" content="Every AI reviewer forgets. MemoLint remembers your conventions, the suggestions you rejected, and the bugs that took you down. Built on Hindsight agent memory.">
+<meta property="og:title" content="MemoLint — Code review that remembers your team">
+<meta property="og:description" content="Same model. Same diff. One of them has been here before.">
+<meta property="og:type" content="website">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
 <style>
-  :root{
-    color-scheme:dark;
-    /* Taken from the tool's own terminal output, not picked for decoration. */
-    --bg:#0d1117; --surface:#11161d; --rule:#262d36;
-    --ink:#e6edf3; --dim:#8b949e; --faint:#5a636d;
-    --add:#56d364;      /* diff green  — accepted */
-    --del:#f85149;      /* diff red    — high severity, rejected */
-    --meta:#bc8cff;     /* the colour `precedent:` prints in */
-    --key:#79c0ff;      /* identifiers */
-    --warn:#e3b341;
-    --mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
-    --sans:"IBM Plex Sans",system-ui,sans-serif;
-    --gut:clamp(16px,4vw,40px);
-  }
-  *{box-sizing:border-box}
-  html{scroll-behavior:smooth}
-  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.62;
-       -webkit-font-smoothing:antialiased;font-size:16px}
-  .wrap{max-width:980px;margin:0 auto;padding-inline:var(--gut)}
-  a{color:var(--key)}
-  p{max-width:66ch}
+:root{
+  color-scheme:dark;
+  --bg:#08090b; --surface:#0e1013; --raised:#14171c; --line:#1d2128; --line-2:#2a2f38;
+  --ink:#f5f6f8; --dim:#9aa0ab; --faint:#656c78;
+  --go:#34d399; --go-dim:#0f3d31;
+  --stop:#fb7185; --stop-dim:#43181f;
+  --amber:#fbbf24; --violet:#a78bfa; --sky:#7dd3fc;
+  --sans:"Instrument Sans",system-ui,-apple-system,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Consolas,monospace;
+  --gut:clamp(20px,5vw,48px);
+  --r:14px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+     line-height:1.6;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+.wrap{max-width:1120px;margin:0 auto;padding-inline:var(--gut)}
+.narrow{max-width:780px}
+a{color:inherit}
+h1,h2,h3{margin:0;letter-spacing:-.03em;text-wrap:balance;font-weight:600}
+p{margin:0}
 
-  /* Section headings borrow the diff hunk header. It is the one structural device
-     this subject actually owns, so it is information rather than ornament. */
-  .hunk{font-family:var(--mono);font-size:13px;color:var(--faint);margin:0 0 6px;
-        display:flex;align-items:center;gap:12px;white-space:nowrap;overflow:hidden}
-  .hunk::after{content:"";flex:1;height:1px;background:var(--rule)}
-  .hunk b{color:var(--meta);font-weight:500}
-  h2{font-family:var(--mono);font-size:clamp(21px,3vw,27px);font-weight:600;
-     letter-spacing:-.01em;margin:0 0 16px}
-  h3{font-family:var(--mono);font-size:15px;font-weight:600;margin:0 0 7px}
-  section{padding-block:clamp(44px,6vw,72px)}
-  .lede{color:var(--dim);margin:0 0 28px}
+/* ───── nav ───── */
+nav{position:sticky;top:env(safe-area-inset-top,0px);z-index:50;
+    background:rgba(8,9,11,.72);backdrop-filter:blur(14px) saturate(140%);
+    border-bottom:1px solid var(--line)}
+nav .wrap{display:flex;align-items:center;gap:28px;height:62px}
+.logo{display:flex;align-items:center;gap:9px;margin-right:auto;font-weight:700;
+      font-size:16.5px;letter-spacing:-.02em;text-decoration:none}
+.logo .mark{width:22px;height:22px;border-radius:6px;background:linear-gradient(145deg,var(--go),#0d9488);
+            display:grid;place-content:center;font-family:var(--mono);font-size:12px;
+            font-weight:700;color:#04140f}
+nav a.nl{color:var(--dim);text-decoration:none;font-size:14.5px;font-weight:500}
+nav a.nl:hover{color:var(--ink)}
+@media(max-width:860px){nav .nl{display:none}}
 
-  /* ---- top bar ---- */
-  nav{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:rgba(13,17,23,.92);
-      backdrop-filter:blur(8px);border-bottom:1px solid var(--rule);font-family:var(--mono);font-size:13px}
-  nav .wrap{display:flex;align-items:center;gap:20px;height:50px}
-  .brand{font-weight:600;margin-right:auto;letter-spacing:-.01em}
-  .brand i{color:var(--add);font-style:normal}
-  nav a{color:var(--dim);text-decoration:none}
-  nav a:hover{color:var(--ink)}
-  @media(max-width:700px){nav .nl{display:none}}
+.btn{display:inline-flex;align-items:center;gap:7px;font-family:var(--sans);font-weight:600;
+     font-size:14.5px;text-decoration:none;padding:9px 17px;border-radius:9px;
+     border:1px solid var(--line-2);background:var(--raised);color:var(--ink);
+     transition:border-color .18s,background .18s,transform .18s}
+.btn:hover{border-color:#3a414c;transform:translateY(-1px)}
+.btn.go{background:var(--go);border-color:var(--go);color:#04140f}
+.btn.go:hover{background:#3fe0a8;border-color:#3fe0a8}
+.btn.lg{padding:12px 22px;font-size:15.5px;border-radius:10px}
 
-  /* ---- hero ---- */
-  header{padding-block:clamp(40px,7vw,76px) clamp(28px,4vw,44px)}
-  h1{font-family:var(--mono);font-size:clamp(27px,5.2vw,46px);font-weight:600;line-height:1.14;
-     letter-spacing:-.025em;margin:0 0 18px;max-width:19ch}
-  h1 i{font-style:normal;color:var(--add)}
-  .sub{color:var(--dim);font-size:clamp(16px,2vw,18px);max-width:56ch;margin:0 0 26px}
-  .links{font-family:var(--mono);font-size:13.5px;display:flex;flex-wrap:wrap;gap:6px 20px;margin-bottom:30px}
-  .links a{text-decoration:none;color:var(--key)}
-  .links a:hover{text-decoration:underline}
-  .links span{color:var(--faint)}
+/* ───── hero ───── */
+/* overflow:clip, not hidden. The decorative glow below is wider than the viewport, and
+   `hidden` would make this a scroll container: focusing the switch then scrolls the whole
+   hero sideways and the content never comes back. `clip` cannot scroll. */
+.hero{position:relative;padding-block:clamp(56px,10vw,104px) clamp(40px,6vw,64px);
+      overflow:clip;overflow-clip-margin:0}
+.hero::before{content:"";position:absolute;top:-340px;left:50%;transform:translateX(-50%);
+  width:1100px;height:700px;pointer-events:none;
+  background:radial-gradient(ellipse at center,rgba(52,211,153,.13),transparent 62%)}
+.hero::after{content:"";position:absolute;inset:0;pointer-events:none;
+  background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);
+  background-size:62px 62px;opacity:.26;
+  mask-image:radial-gradient(ellipse 70% 50% at 50% 0%,#000 30%,transparent 72%);
+  -webkit-mask-image:radial-gradient(ellipse 70% 50% at 50% 0%,#000 30%,transparent 72%)}
+.hero .wrap{position:relative;z-index:1}
+.pill{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:500;
+      color:var(--dim);border:1px solid var(--line-2);background:var(--surface);
+      border-radius:999px;padding:5px 14px 5px 7px;margin-bottom:26px;text-decoration:none}
+.pill b{background:var(--go-dim);color:var(--go);font-size:11px;font-weight:700;
+        letter-spacing:.04em;padding:2px 8px;border-radius:999px}
+.pill:hover{border-color:#3a414c}
+h1{font-size:clamp(38px,6.4vw,70px);line-height:1.02;font-weight:700;max-width:16ch}
+h1 .fade{color:var(--faint)}
+.hero p.sub{color:var(--dim);font-size:clamp(17px,2vw,20px);max-width:54ch;margin:22px 0 32px}
+.hero .cta{display:flex;flex-wrap:wrap;gap:11px;align-items:center}
+.hero .cta code{font-family:var(--mono);font-size:13px;color:var(--dim);
+  background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:9px 13px}
 
-  /* ---- terminal ---- */
-  .term{background:var(--surface);border:1px solid var(--rule);border-radius:6px;overflow:hidden;
-        font-family:var(--mono);font-size:13px;line-height:1.75}
-  .term .bar{display:flex;align-items:center;gap:7px;padding:8px 12px;border-bottom:1px solid var(--rule);
-             color:var(--faint);font-size:11.5px}
-  .term .bar i{width:9px;height:9px;border-radius:50%;background:#2d3540;display:inline-block}
-  .term .body{padding:14px 16px;overflow-x:auto;position:relative}
-  .term pre{margin:0;white-space:pre}
-  .p{color:var(--faint)} .g{color:var(--add)} .r{color:var(--del)}
-  .m{color:var(--meta)} .k{color:var(--key)} .w{color:var(--warn)} .d{color:var(--dim)}
-  .copy{position:absolute;top:8px;right:8px;font-family:var(--sans);font-size:11px;color:var(--faint);
-        background:var(--bg);border:1px solid var(--rule);border-radius:4px;padding:3px 9px;cursor:pointer}
-  .copy:hover{color:var(--ink)} .copy.ok{color:var(--add);border-color:var(--add)}
+/* ───── the interactive demo ───── */
+.demo{margin-top:clamp(40px,6vw,62px);border:1px solid var(--line-2);border-radius:var(--r);
+      background:var(--surface);overflow:hidden;
+      box-shadow:0 30px 70px -28px rgba(0,0,0,.85),0 0 0 1px rgba(255,255,255,.015)}
+.demo-top{display:flex;align-items:center;gap:14px;padding:13px 16px;
+          border-bottom:1px solid var(--line);background:var(--raised);flex-wrap:wrap}
+.dots{display:flex;gap:6px}.dots i{width:10px;height:10px;border-radius:50%;background:#2b313a}
+.demo-top .file{font-family:var(--mono);font-size:12.5px;color:var(--faint);margin-right:auto}
+.switch{display:flex;align-items:center;gap:11px;font-size:13px;font-weight:600;color:var(--dim)}
+.switch .lab{transition:color .2s}
+.switch[data-on="true"] .on{color:var(--go)}
+.switch[data-on="false"] .off{color:var(--stop)}
+.track{width:48px;height:27px;border-radius:999px;background:var(--stop-dim);
+       border:1px solid var(--line-2);cursor:pointer;position:relative;padding:0;
+       transition:background .26s}
+.switch[data-on="true"] .track{background:var(--go-dim);border-color:#1d5f4c}
+.knob{position:absolute;top:2px;left:2px;width:21px;height:21px;border-radius:50%;
+      background:var(--stop);transition:transform .26s cubic-bezier(.3,.9,.3,1),background .26s}
+.switch[data-on="true"] .knob{transform:translateX(21px);background:var(--go)}
 
-  /* ---- the two reviews, as review comments rather than cards ---- */
-  .review{border-left:2px solid var(--rule);padding:2px 0 2px 18px;margin-bottom:26px}
-  .review.a{border-left-color:var(--del)} .review.b{border-left-color:var(--add)}
-  .review .sev{font-family:var(--mono);font-size:12px;letter-spacing:.06em;margin-bottom:8px}
-  .review.a .sev{color:var(--del)} .review.b .sev{color:var(--add)}
-  .review q{display:block;font-family:var(--mono);font-size:13.5px;line-height:1.7;quotes:none;color:var(--ink)}
-  .review .prec{display:block;margin-top:9px;font-family:var(--mono);font-size:12.5px;color:var(--meta)}
-  .review .say{display:block;margin-top:10px;color:var(--faint);font-size:13.5px;font-family:var(--sans)}
-  @media(min-width:860px){.pair{display:grid;grid-template-columns:1fr 1fr;gap:30px}}
+.demo-grid{display:grid;grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr)}
+@media(max-width:880px){.demo-grid{grid-template-columns:1fr}}
+.demo-code{padding:18px 0 18px 0;border-right:1px solid var(--line);font-family:var(--mono);
+           font-size:12.5px;line-height:1.85;overflow-x:auto}
+@media(max-width:880px){.demo-code{border-right:0;border-bottom:1px solid var(--line)}}
+.demo-code .ln{display:block;padding:0 18px;white-space:pre;color:var(--dim)}
+.demo-code .ln.hl{background:rgba(251,113,133,.08);box-shadow:inset 2px 0 0 var(--stop)}
+.demo-out{padding:20px 22px;min-height:280px;position:relative}
+.state{transition:opacity .3s ease,transform .3s ease}
+.state[hidden]{display:none}
+.badge{display:inline-flex;align-items:center;gap:7px;font-family:var(--mono);font-size:11px;
+       font-weight:700;letter-spacing:.07em;padding:3px 9px;border-radius:5px;margin-bottom:13px}
+.badge.med{background:#2a2410;color:var(--amber)}
+.badge.high{background:var(--stop-dim);color:var(--stop)}
+.demo-out h4{font-family:var(--mono);font-size:14.5px;font-weight:700;margin:0 0 9px;letter-spacing:-.01em}
+.demo-out p.body{color:var(--dim);font-size:14.5px;line-height:1.65;margin-bottom:14px}
+.demo-out .hi{color:var(--ink);background:rgba(251,191,36,.1);padding:1px 4px;border-radius:3px}
+.prec{border-left:2px solid var(--violet);padding:7px 0 7px 13px;margin-bottom:16px}
+.prec span{display:block;font-family:var(--mono);font-size:11px;color:var(--violet);
+           letter-spacing:.07em;margin-bottom:3px}
+.prec p{color:var(--dim);font-size:13.5px;line-height:1.6}
+.supp{border-top:1px dashed var(--line-2);padding-top:13px}
+.supp span{display:block;font-size:11.5px;color:var(--faint);letter-spacing:.06em;
+           text-transform:uppercase;font-weight:600;margin-bottom:7px}
+.supp p{color:var(--dim);font-size:13.5px;line-height:1.6}
+.supp s{color:var(--faint);text-decoration-color:var(--stop)}
+.demo-foot{border-top:1px solid var(--line);padding:11px 22px;font-family:var(--mono);
+           font-size:11.5px;color:var(--faint);display:flex;gap:18px;flex-wrap:wrap}
+.demo-foot b{color:var(--dim);font-weight:500}
+.hint{text-align:center;color:var(--faint);font-size:13.5px;margin-top:16px}
+.hint b{color:var(--go);font-weight:600}
 
-  /* ---- numbered list that reads like a pipeline ---- */
-  ol.flow{list-style:none;counter-reset:f;padding:0;margin:0 0 8px}
-  ol.flow li{counter-increment:f;position:relative;padding:0 0 18px 30px;border-left:1px solid var(--rule);
-             margin-left:7px}
-  ol.flow li:last-child{border-left-color:transparent;padding-bottom:0}
-  ol.flow li::before{content:counter(f);position:absolute;left:-8px;top:0;width:16px;height:16px;
-      background:var(--bg);border:1px solid var(--rule);border-radius:50%;color:var(--meta);
-      font-family:var(--mono);font-size:10px;display:grid;place-content:center}
-  ol.flow b{font-family:var(--mono);font-weight:600;font-size:14px;display:block;margin-bottom:2px}
-  ol.flow span{color:var(--dim);font-size:15px}
+/* ───── strip ───── */
+.strip{border-block:1px solid var(--line);background:var(--surface)}
+.strip .wrap{display:flex;flex-wrap:wrap;gap:14px 46px;align-items:center;
+             padding-block:20px;font-size:13.5px;color:var(--faint)}
+.strip b{color:var(--dim);font-weight:500}
 
-  /* ---- tabs ---- */
-  .tabs{display:flex;flex-wrap:wrap;gap:0;border-bottom:1px solid var(--rule);margin-bottom:22px}
-  .tabs button{font-family:var(--mono);font-size:13px;color:var(--dim);background:none;border:0;
-               border-bottom:2px solid transparent;padding:9px 14px 8px;cursor:pointer;margin-bottom:-1px}
-  .tabs button:hover{color:var(--ink)}
-  .tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--add)}
-  .step{margin-bottom:20px}
-  .step h3{color:var(--dim);font-weight:500;font-size:13px}
-  .step h3 em{font-style:normal;color:var(--meta)}
-  .step p{color:var(--dim);font-size:15px;margin:0 0 10px}
-  .step .term{margin-top:8px}
-  .warnbox{font-family:var(--mono);font-size:12.5px;color:var(--dim);border-left:2px solid var(--warn);
-           padding-left:14px;margin:18px 0}
+/* ───── sections ───── */
+section{padding-block:clamp(60px,9vw,112px)}
+.kicker{display:inline-block;font-size:12.5px;font-weight:700;letter-spacing:.1em;
+        text-transform:uppercase;color:var(--go);margin-bottom:14px}
+h2{font-size:clamp(28px,4.2vw,44px);line-height:1.1;font-weight:700;margin-bottom:16px}
+.lede{color:var(--dim);font-size:clamp(16px,1.8vw,18.5px);max-width:60ch}
+.head{margin-bottom:clamp(34px,5vw,54px)}
 
-  /* ---- plain data, no tiles ---- */
-  table{width:100%;border-collapse:collapse;font-size:14.5px;font-family:var(--mono)}
-  th,td{text-align:left;padding:9px 14px 9px 0;border-bottom:1px solid var(--rule);vertical-align:top}
-  th{color:var(--faint);font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;font-weight:500}
-  td.n{font-variant-numeric:tabular-nums;color:var(--ink);white-space:nowrap}
-  td small{display:block;color:var(--faint);font-size:11.5px;font-family:var(--sans);margin-top:3px}
-  .scroll{overflow-x:auto;margin-bottom:10px}
-  .src{color:var(--faint);font-size:12.5px;font-family:var(--sans)}
+.cols{display:grid;gap:18px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:26px}
+.tile .ic{width:34px;height:34px;border-radius:9px;display:grid;place-content:center;
+          font-family:var(--mono);font-size:15px;font-weight:700;margin-bottom:16px}
+.tile h3{font-size:17.5px;margin-bottom:8px}
+.tile p{color:var(--dim);font-size:15px}
 
-  /* ---- findings list: the page describes itself as a review ---- */
-  .finding{padding:16px 0;border-bottom:1px solid var(--rule)}
-  .finding:last-child{border-bottom:0}
-  .finding .tag{font-family:var(--mono);font-size:11.5px;color:var(--faint);letter-spacing:.07em}
-  .finding h3{margin:5px 0 5px}
-  .finding p{color:var(--dim);font-size:15px;margin:0}
-  @media(min-width:760px){.two{display:grid;grid-template-columns:1fr 1fr;gap:0 44px}}
+/* steps */
+.steps{display:grid;gap:0;counter-reset:st}
+.stepx{counter-increment:st;display:grid;grid-template-columns:62px 1fr;gap:0 22px;
+       padding-block:26px;border-top:1px solid var(--line)}
+.stepx:last-child{border-bottom:1px solid var(--line)}
+.stepx .num{font-family:var(--mono);font-size:13px;font-weight:700;color:var(--go);
+            padding-top:3px}
+.stepx h3{font-size:19px;margin-bottom:7px}
+.stepx p{color:var(--dim);font-size:15.5px;max-width:62ch}
+@media(max-width:620px){.stepx{grid-template-columns:1fr;gap:6px}}
 
-  .who{font-family:var(--mono);font-size:14px;padding:14px 0;border-bottom:1px solid var(--rule)}
-  .who:last-of-type{border-bottom:0}
-  .who b{font-weight:600;font-size:16px;display:inline-block;min-width:170px}
-  .who em{font-style:normal;color:var(--faint);font-size:12.5px;display:block;margin:2px 0 7px}
-  .who a{margin-right:16px;text-decoration:none;font-size:13px}
-  .who a:hover{text-decoration:underline}
+/* numbers */
+.figs{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));
+      border:1px solid var(--line);border-radius:var(--r);overflow:hidden;background:var(--surface)}
+.fig{padding:26px;border-right:1px solid var(--line);border-bottom:1px solid var(--line)}
+.fig b{display:block;font-size:clamp(28px,3.6vw,38px);font-weight:700;letter-spacing:-.035em;
+       font-variant-numeric:tabular-nums;line-height:1.1;margin-bottom:7px}
+.fig p{color:var(--dim);font-size:14.5px;line-height:1.5}
+.fig cite{display:block;margin-top:11px;font-style:normal;font-size:11.5px;color:var(--faint)}
 
-  footer{border-top:1px solid var(--rule);padding-block:30px 44px;color:var(--faint);
-         font-family:var(--mono);font-size:12.5px}
-  footer a{color:var(--dim);text-decoration:none} footer a:hover{color:var(--ink)}
-  @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+/* install */
+.tabs{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:20px}
+.tabs button{font-family:var(--sans);font-size:14px;font-weight:600;color:var(--dim);
+             background:var(--surface);border:1px solid var(--line);border-radius:999px;
+             padding:8px 17px;cursor:pointer;transition:.18s}
+.tabs button:hover{color:var(--ink);border-color:var(--line-2)}
+.tabs button[aria-selected="true"]{background:var(--ink);border-color:var(--ink);color:#08090b}
+.pane h4{font-size:14px;font-weight:600;margin:20px 0 9px;color:var(--dim)}
+.pane h4:first-child{margin-top:0}
+.pane h4 i{font-style:normal;color:var(--go);font-family:var(--mono);margin-right:8px}
+.pane p{color:var(--dim);font-size:15px;margin-bottom:11px;max-width:64ch}
+.code{position:relative;background:#050608;border:1px solid var(--line);border-radius:10px;
+      font-family:var(--mono);font-size:13px;overflow:hidden}
+.code pre{margin:0;padding:15px 64px 15px 17px;overflow-x:auto;line-height:1.8}
+.code .p{color:var(--faint)} .code .s{color:var(--go)} .code .r{color:var(--stop)}
+.copy{position:absolute;top:9px;right:9px;font-size:11.5px;font-weight:600;color:var(--faint);
+      background:var(--raised);border:1px solid var(--line-2);border-radius:6px;
+      padding:4px 10px;cursor:pointer;font-family:var(--sans)}
+.copy:hover{color:var(--ink)} .copy.ok{color:var(--go);border-color:var(--go)}
+.aside{border-left:2px solid var(--amber);padding-left:15px;color:var(--dim);font-size:14px;margin:18px 0}
+
+/* team + cta */
+.people{display:grid;gap:18px;grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
+.person{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:26px}
+.person h3{font-size:20px;margin-bottom:3px}
+.person .role{color:var(--go);font-size:13px;font-weight:600;margin-bottom:16px}
+.person a{display:inline-block;margin:0 16px 4px 0;font-size:14px;color:var(--dim);
+          text-decoration:none;font-weight:500}
+.person a:hover{color:var(--ink);text-decoration:underline}
+
+.final{text-align:center;border:1px solid var(--line);border-radius:18px;background:var(--surface);
+       padding:clamp(40px,6vw,64px) var(--gut);position:relative;overflow:clip}
+.final::before{content:"";position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(ellipse 60% 100% at 50% 100%,rgba(52,211,153,.1),transparent 70%)}
+.final>*{position:relative}
+.final h2{margin-bottom:14px}
+.final p{color:var(--dim);margin:0 auto 26px;max-width:46ch}
+.final .cta{display:flex;gap:11px;justify-content:center;flex-wrap:wrap}
+
+footer{border-top:1px solid var(--line);padding-block:34px 46px;color:var(--faint);font-size:13.5px}
+footer .wrap{display:flex;flex-wrap:wrap;gap:12px 28px;align-items:center}
+footer a{color:var(--dim);text-decoration:none}footer a:hover{color:var(--ink)}
+footer .sp{margin-right:auto}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto}}
 </style>
 </head>
 <body>
 
 <nav><div class="wrap">
-  <span class="brand">memolint<i>_</i></span>
-  <a class="nl" href="#install">install</a>
-  <a class="nl" href="#how">how</a>
-  <a class="nl" href="#why">why</a>
-  <a class="nl" href="#learned">notes</a>
-  <a href="https://github.com/WaifuPuller/MemoLint">github</a>
+  <a class="logo" href="#top"><span class="mark">M</span>MemoLint</a>
+  <a class="nl" href="#demo">Demo</a>
+  <a class="nl" href="#how">How it works</a>
+  <a class="nl" href="#impact">Impact</a>
+  <a class="nl" href="#install">Install</a>
+  <a class="btn" href="https://github.com/WaifuPuller/MemoLint">GitHub</a>
 </div></nav>
 
-<header class="wrap">
-  <h1>A code reviewer that <i>remembers</i> your team.</h1>
+<div class="hero" id="top"><div class="wrap">
+  <a class="pill" href="https://github.com/vectorize-io/hindsight"><b>NEW</b> Built on Hindsight agent memory</a>
+  <h1>Code review that remembers <span class="fade">your team.</span></h1>
   <p class="sub">Every AI reviewer starts from zero on every pull request. It repeats the
-    suggestion you rejected last month, and it has never heard of the bug that took
-    production down. This one remembers both.</p>
-  <div class="links">
-    <a href="#install">install →</a>
-    <a href="https://github.com/WaifuPuller/MemoLint">source</a>
-    <a href="https://youtu.be/jWx0-Nl4BRk">demo video</a>
-    <span>MIT · built on Hindsight</span>
+    suggestion you rejected last month and has never heard of the bug that took production
+    down. MemoLint remembers both.</p>
+  <div class="cta">
+    <a class="btn go lg" href="#install">Get started free</a>
+    <a class="btn lg" href="https://youtu.be/jWx0-Nl4BRk">Watch 2-min demo</a>
+    <code>pip install git+https://github.com/WaifuPuller/MemoLint</code>
   </div>
 
-  <div class="term">
-    <div class="bar"><i></i><i></i><i></i><span>memolint review --git main..HEAD</span></div>
-    <div class="body">
-      <button class="copy" data-copy="pip install git+https://github.com/WaifuPuller/MemoLint">copy install</button>
-<pre><span class="d">Add refund summary endpoint</span>  <span class="p">(orderflow#3)</span>
-<span class="g">memory on</span> <span class="p">|</span> 23 memories recalled <span class="p">|</span> 2,206 in / 313 out tokens
+  <!-- the product, not a picture of it -->
+  <div class="demo" id="demo">
+    <div class="demo-top">
+      <span class="dots"><i></i><i></i><i></i></span>
+      <span class="file">orderflow/api/refunds.py</span>
+      <div class="switch" id="sw" data-on="false">
+        <span class="lab off">Memory off</span>
+        <button class="track" id="track" role="switch" aria-checked="false" aria-label="Toggle team memory"><span class="knob"></span></button>
+        <span class="lab on">Memory on</span>
+      </div>
+    </div>
 
-<span class="r">F1  HIGH</span>   <span class="d">N+1 external API calls in loop</span>  <span class="k">orderflow/api/refunds.py:26</span>
-     The loop calls <span class="k">_provider_status(refund)</span> for every refund. This is the
-     exact shape of the bug that caused the <span class="w">41-minute checkout outage</span>.
-     <span class="m">precedent:</span> one call per item inside a loop exhausted the connection pool.
+    <div class="demo-grid">
+      <div class="demo-code">
+<span class="ln"><span style="color:#656c78">23</span>  refunds = _refunds_for(order_id)</span>
+<span class="ln"><span style="color:#656c78">24</span>  items = []</span>
+<span class="ln"><span style="color:#656c78">25</span>  </span>
+<span class="ln hl"><span style="color:#656c78">26</span>  for refund in refunds:</span>
+<span class="ln hl"><span style="color:#656c78">27</span>      status = _provider_status(refund)</span>
+<span class="ln"><span style="color:#656c78">28</span>      items.append({</span>
+<span class="ln"><span style="color:#656c78">29</span>          "id": refund.id,</span>
+<span class="ln"><span style="color:#656c78">30</span>          "amount": refund.amount,</span>
+<span class="ln"><span style="color:#656c78">31</span>          "status": status.get("status"),</span>
+<span class="ln"><span style="color:#656c78">32</span>      })</span>
+      </div>
 
-<span class="p">Deliberately not raised (learned from you)</span>
-     <span class="d">Add type hints to the private helpers</span>
-     <span class="p">└─ team convention: private helpers do not require type hints</span></pre>
+      <div class="demo-out">
+        <div class="state" id="s-off">
+          <span class="badge med">MEDIUM</span>
+          <h4>Sequential provider calls in loop</h4>
+          <p class="body">The loop calls <code style="font-family:var(--mono);font-size:13px">_provider_status(refund)</code>
+            for each refund, which makes a network request per item. Consider fetching all
+            refund statuses in a single batch call if the provider supports it.</p>
+          <p style="color:var(--faint);font-size:13.5px;font-style:italic">Correct, and
+            indistinguishable from what any other tool would say.</p>
+        </div>
+
+        <div class="state" id="s-on" hidden>
+          <span class="badge high">HIGH</span>
+          <h4>N+1 external API calls in loop</h4>
+          <p class="body">One external API request per item. This is <span class="hi">the exact
+            shape of the bug that caused the 41-minute checkout outage</span>. Batch these
+            requests or parallelize them with a bounded concurrency limit.</p>
+          <div class="prec">
+            <span>PRECEDENT</span>
+            <p>The checkout outage on September 3 was caused by an N+1 query pattern where one
+              call was made per item inside a loop, exhausting the Postgres connection pool.</p>
+          </div>
+          <div class="supp">
+            <span>Deliberately not raised</span>
+            <p><s>Add type hints to the private helpers</s> — team convention: private helpers
+              do not require them.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="demo-foot">
+      <span><b id="f-mem">0</b> memories recalled</span>
+      <span><b id="f-tok">1,008</b> tokens in</span>
+      <span>model <b>unchanged</b></span>
+      <span>diff <b>unchanged</b></span>
     </div>
   </div>
-</header>
+  <p class="hint">Flip the switch. <b>Same model, same diff</b> — only the memory changes.</p>
+</div></div>
 
-<section class="wrap" id="proof">
-  <p class="hunk">@@ <b>the whole idea</b> @@</p>
-  <h2>Same model. Same diff.</h2>
-  <p class="lede">Both of these came out of one run against a live memory bank. The only
-    variable is whether the reviewer could recall what this team had already decided.</p>
+<div class="strip"><div class="wrap">
+  <span><b>Works with</b></span>
+  <span>Claude Code</span><span>Codex</span><span>Cursor</span><span>Windsurf</span>
+  <span>Antigravity</span><span>any MCP client</span>
+  <span><b>Runs on</b> Groq · Gemini · local Ollama</span>
+</div></div>
 
-  <div class="pair">
-    <div class="review a">
-      <div class="sev">── memory off</div>
-      <q>The loop calls <span class="k">_provider_status(refund)</span> for each refund, which
-        makes a network request per item. Consider batching the status requests.</q>
-      <span class="say">Correct. Forgettable. Any tool says this.</span>
-    </div>
-    <div class="review b">
-      <div class="sev">── memory on</div>
-      <q>This is the exact shape of the bug that caused the 41-minute checkout outage. You
-        must batch these requests or parallelize them to avoid exhausting the connection pool.</q>
-      <span class="prec">precedent: one call per item inside a loop exhausted the Postgres pool.</span>
-      <span class="say">It matched an N+1 database query to a per-item API call. Nobody told it
-        those were the same bug.</span>
-    </div>
+<section class="wrap" id="problem">
+  <div class="head">
+    <span class="kicker">The problem</span>
+    <h2>Your reviewer has amnesia</h2>
+    <p class="lede">Review bots get switched off because the noise outgrows the signal. Not
+      because they are wrong, but because they never learn anything about you.</p>
   </div>
-</section>
-
-<section class="wrap" id="install">
-  <p class="hunk">@@ <b>install</b> @@</p>
-  <h2>Pick how you run it</h2>
-  <p class="lede">Everything works on free tiers. The only account you need is Hindsight,
-    which holds the memory. One of these four will match your setup.</p>
-
-  <div class="tabs" role="tablist">
-    <button role="tab" aria-selected="true" data-tab="cli">command line</button>
-    <button role="tab" aria-selected="false" data-tab="claude">claude code</button>
-    <button role="tab" aria-selected="false" data-tab="mcp">codex · cursor · antigravity</button>
-    <button role="tab" aria-selected="false" data-tab="local">fully local</button>
-  </div>
-
-  <div id="p-cli">
-    <div class="step"><h3><em>1</em> install</h3>
-      <div class="term"><div class="body"><button class="copy" data-copy="pip install git+https://github.com/WaifuPuller/MemoLint">copy</button>
-<pre><span class="p">$</span> pip install git+https://github.com/WaifuPuller/MemoLint</pre></div></div></div>
-    <div class="step"><h3><em>2</em> two free keys</h3>
-      <p>Hindsight from <a href="https://ui.hindsight.vectorize.io">ui.hindsight.vectorize.io</a>
-        holds the memory. Groq from <a href="https://console.groq.com/keys">console.groq.com/keys</a>
-        writes the reviews. Neither needs a card.</p>
-      <div class="term"><div class="body"><button class="copy" data-copy="HINDSIGHT_API_KEY=hsk_...
-GROQ_API_KEY=gsk_...">copy</button>
-<pre><span class="p"># .env</span>
-HINDSIGHT_API_KEY=hsk_...
-GROQ_API_KEY=gsk_...</pre></div></div></div>
-    <div class="step"><h3><em>3</em> review something</h3>
-      <div class="term"><div class="body"><button class="copy" data-copy="memolint review --git main..HEAD">copy</button>
-<pre><span class="p">$</span> memolint review --git main..HEAD
-<span class="p">$</span> memolint review --pr owner/repo#42 --post</pre></div></div></div>
-    <div class="step"><h3><em>4</em> teach it — this is the part that matters</h3>
-      <p>A rejection carries more signal than anything else it stores, because it encodes a
-        judgment that exists nowhere in your code.</p>
-      <div class="term"><div class="body"><button class="copy" data-copy='memolint feedback F2 --reject --note "we do not type-hint private helpers"'>copy</button>
-<pre><span class="p">$</span> memolint feedback F2 <span class="r">--reject</span> --note <span class="g">"we do not type-hint private helpers"</span>
-<span class="p">$</span> memolint teach <span class="g">"prefer guard clauses over nested ifs"</span>
-<span class="p">$</span> memolint incident <span class="g">"N+1 in checkout caused the Sept 3 outage"</span></pre></div></div></div>
-  </div>
-
-  <div id="p-claude" hidden>
-    <div class="step"><h3><em>1</em> one line, nothing installed permanently</h3>
-      <div class="term"><div class="body"><button class="copy" data-copy="claude mcp add memolint -- uvx --from git+https://github.com/WaifuPuller/MemoLint memolint-mcp">copy</button>
-<pre><span class="p">$</span> claude mcp add memolint -- uvx \
-    --from git+https://github.com/WaifuPuller/MemoLint memolint-mcp</pre></div></div></div>
-    <div class="step"><h3><em>2</em> add the memory key</h3>
-      <div class="term"><div class="body"><button class="copy" data-copy="HINDSIGHT_API_KEY=hsk_...">copy</button>
-<pre><span class="p"># .env</span>
-HINDSIGHT_API_KEY=hsk_...</pre></div></div></div>
-    <div class="step"><h3><em>3</em> what changes</h3>
-      <p>The agent is told to call <span style="font-family:var(--mono);color:var(--key)">recall_team_memory</span>
-        before it writes code, so it follows your conventions the first time instead of being
-        corrected afterwards. It can also store a rule when you state one, record an incident,
-        and run a full review.</p></div>
-    <div class="warnbox">Nothing is hosted. The client launches the server as a local process
-      and talks over pipes. The only remote piece is the memory bank.</div>
-  </div>
-
-  <div id="p-mcp" hidden>
-    <div class="step"><h3><em>1</em> install the server</h3>
-      <div class="term"><div class="body"><button class="copy" data-copy="pip install git+https://github.com/WaifuPuller/MemoLint">copy</button>
-<pre><span class="p">$</span> pip install git+https://github.com/WaifuPuller/MemoLint</pre></div></div></div>
-    <div class="step"><h3><em>2</em> codex — ~/.codex/config.toml</h3>
-      <div class="term"><div class="body"><button class="copy" data-copy='[mcp_servers.memolint]
-command = "memolint-mcp"'>copy</button>
-<pre>[mcp_servers.memolint]
-command = <span class="g">"memolint-mcp"</span></pre></div></div></div>
-    <div class="step"><h3><em>3</em> cursor · windsurf · antigravity</h3>
-      <p>Same shape, in each client's own MCP config file.</p>
-      <div class="term"><div class="body"><button class="copy" data-copy='{ "mcpServers": { "memolint": { "command": "memolint-mcp" } } }'>copy</button>
-<pre>{ <span class="g">"mcpServers"</span>: { <span class="g">"memolint"</span>: { <span class="g">"command"</span>: <span class="g">"memolint-mcp"</span> } } }</pre></div></div></div>
-    <div class="warnbox">MCP is a standard, so one server works with every client that speaks
-      it. Check your client's docs for where its config file lives.</div>
-  </div>
-
-  <div id="p-local" hidden>
-    <p class="lede">No API keys, and no source leaves the machine. Ollama runs the model,
-      Hindsight runs in Docker. For regulated codebases, or anywhere code cannot go out.</p>
-    <div class="step"><h3><em>1</em> memory, self-hosted</h3>
-      <div class="term"><div class="body"><button class="copy" data-copy="docker run -it --pull always --name hindsight --shm-size=1g -p 8888:8888 -p 9999:9999 -e HINDSIGHT_API_EMBEDDINGS_PROVIDER=local -v hindsight-data:/home/hindsight/.pg0 ghcr.io/vectorize-io/hindsight:latest">copy</button>
-<pre><span class="p">$</span> docker run -it --pull always --name hindsight \
-    --shm-size=1g -p 8888:8888 -p 9999:9999 \
-    -e HINDSIGHT_API_EMBEDDINGS_PROVIDER=local \
-    -v hindsight-data:/home/hindsight/.pg0 \
-    ghcr.io/vectorize-io/hindsight:latest</pre></div></div></div>
-    <div class="step"><h3><em>2</em> model, local</h3>
-      <div class="term"><div class="body"><button class="copy" data-copy="ollama pull qwen2.5-coder:7b">copy</button>
-<pre><span class="p">$</span> ollama pull qwen2.5-coder:7b</pre></div></div></div>
-    <div class="step"><h3><em>3</em> point at both</h3>
-      <div class="term"><div class="body"><button class="copy" data-copy="HINDSIGHT_BASE_URL=http://localhost:8888
-LLM_PROVIDER=ollama">copy</button>
-<pre><span class="p"># .env</span>
-HINDSIGHT_BASE_URL=http://localhost:8888
-LLM_PROVIDER=ollama</pre></div></div></div>
-    <div class="warnbox">Hindsight needs a model with structured output for its own fact
-      extraction. A local model covers it, at some cost to extraction quality.</div>
+  <div class="cols">
+    <div class="tile"><div class="ic" style="background:var(--stop-dim);color:var(--stop)">↻</div>
+      <h3>It repeats itself</h3>
+      <p>You rejected that suggestion in March. It will make it again in April, and in May, in
+        exactly the same words.</p></div>
+    <div class="tile"><div class="ic" style="background:var(--stop-dim);color:var(--stop)">?</div>
+      <h3>It doesn't know your rules</h3>
+      <p>"We don't type-hint private helpers" is a decision that exists nowhere in your code.
+        A model reading the diff cannot infer it.</p></div>
+    <div class="tile"><div class="ic" style="background:var(--stop-dim);color:var(--stop)">!</div>
+      <h3>It has never seen you fail</h3>
+      <p>The pattern that took checkout down last quarter looks like ordinary code to a
+        reviewer with no history.</p></div>
   </div>
 </section>
 
 <section class="wrap" id="how">
-  <p class="hunk">@@ <b>how it works</b> @@</p>
-  <h2>The model is stateless. The bank is not.</h2>
-  <p class="lede">The review itself is unremarkable. What matters happens either side of the
-    model call.</p>
-
-  <ol class="flow">
-    <li><b>recall</b><span>Before reviewing, query the bank for what this team has decided that
-      bears on this change. Budgeted to about 1,000 tokens, so prompt size does not grow as the
-      bank does.</span></li>
-    <li><b>review</b><span>Those memories enter the prompt under headings the model is told to
-      treat as binding rules, not as background reading.</span></li>
-    <li><b>retain</b><span>Afterwards, and again once a human responds, write back what
-      happened. The bank grows with every pull request.</span></li>
-  </ol>
-
-  <h3 style="margin:34px 0 4px;color:var(--dim);font-weight:500">four kinds of memory</h3>
-  <div class="scroll"><table>
-    <tr><th>kind</th><th>what it is</th><th>why it earns its place</th></tr>
-    <tr><td class="n" style="color:var(--add)">feedback</td><td>How a reviewer answered a specific finding, and why</td>
-        <td>A rejection encodes a judgment you cannot read off the codebase. The most valuable thing here.</td></tr>
-    <tr><td class="n" style="color:var(--key)">convention</td><td>A team rule, also stored as a Hindsight directive</td>
-        <td>Rules must apply to every review. Similarity search is the wrong retrieval for a standing rule.</td></tr>
-    <tr><td class="n" style="color:var(--warn)">incident</td><td>A bug or outage tied to a code pattern</td>
-        <td>A post-mortem stops being a page nobody reads and starts flagging the next pull request.</td></tr>
-    <tr><td class="n" style="color:var(--meta)">review</td><td>A summary of each review posted</td>
-        <td>It knows what it already said.</td></tr>
-  </table></div>
-</section>
-
-<section class="wrap" id="why">
-  <p class="hunk">@@ <b>why bother</b> @@</p>
-  <h2>Review is where the time goes</h2>
-  <p class="lede">And the pressure on it is rising, not easing.</p>
-
-  <div class="scroll"><table>
-    <tr><td class="n">36.5M</td><td>professional developers worldwide<small>SlashData, 2025. Other estimates run lower.</small></td></tr>
-    <tr><td class="n">3–5 hrs</td><td>per developer per week spent reviewing code<small>Academic survey median; vendor surveys run higher.</small></td></tr>
-    <tr><td class="n">81%</td><td>say they now spend more time reviewing AI-generated code<small>Harness survey of 700 developers. Vendor-run.</small></td></tr>
-    <tr><td class="n">$420M</td><td>2026 revenue across pure-play AI review tools, up from ~$180M<small>Category estimate. Definitions vary widely.</small></td></tr>
-  </table></div>
-
-  <h3 style="margin:30px 0 2px;color:var(--dim);font-weight:500">where memory changes the outcome</h3>
-  <div class="two">
-    <div class="finding"><div class="tag">RETENTION</div><h3>Knowledge survives people</h3>
-      <p>The engineer who knew why you don't do X leaves. The rejection they recorded stays and
-        keeps shaping reviews.</p></div>
-    <div class="finding"><div class="tag">PREVENTION</div><h3>Post-mortems do something</h3>
-      <p>An incident becomes a rule that flags the next change repeating the pattern, instead of
-        a document nobody opens again.</p></div>
-    <div class="finding"><div class="tag">ONBOARDING</div><h3>House style from day one</h3>
-      <p>A new joiner's first reviews already carry the team's conventions, learned from everyone
-        who came before them.</p></div>
-    <div class="finding"><div class="tag">SIGNAL</div><h3>It gets quieter, not louder</h3>
-      <p>Teams switch review bots off when noise beats signal. This one narrows over time as it
-        learns what you turned down.</p></div>
+  <div class="head narrow">
+    <span class="kicker">How it works</span>
+    <h2>The model is stateless. The memory is not.</h2>
+    <p class="lede">The review itself is ordinary. Everything interesting happens either side
+      of the model call.</p>
+  </div>
+  <div class="steps">
+    <div class="stepx"><div class="num">01</div><div>
+      <h3>Recall before reviewing</h3>
+      <p>A query built from the diff pulls back what this team has already decided: conventions,
+        past feedback, rejected suggestions, and incidents tied to code patterns. Capped at
+        about 1,000 tokens, so the prompt never grows with the bank.</p></div></div>
+    <div class="stepx"><div class="num">02</div><div>
+      <h3>Review with those as rules</h3>
+      <p>Memories enter the prompt under headings the model treats as binding, not as background
+        reading. Findings come back citing the precedent behind each one.</p></div></div>
+    <div class="stepx"><div class="num">03</div><div>
+      <h3>Retain what happened next</h3>
+      <p>Accept a finding, reject it, state a rule, or record an incident. Each response is
+        written back. The bank compounds with every pull request, and so does the reviewer.</p></div></div>
   </div>
 
-  <h3 style="margin:30px 0 4px;color:var(--dim);font-weight:500">what a review costs</h3>
-  <div class="scroll"><table>
-    <tr><th>memories recalled</th><th>tokens in</th><th>tokens out</th></tr>
-    <tr><td class="n">0 · cold bank</td><td class="n">1,008</td><td class="n">687</td></tr>
-    <tr><td class="n">15</td><td class="n">1,925</td><td class="n">743</td></tr>
-    <tr><td class="n">23</td><td class="n">2,206</td><td class="n">313</td></tr>
-  </table></div>
-  <p class="src">Recall is capped, so the prompt does not grow with the bank. A review fits
-    inside Groq's free tier of roughly 8,000 tokens a minute, and MemoLint paces itself against
-    that budget rather than waiting to be rate limited.</p>
+  <div class="cols" style="margin-top:34px">
+    <div class="tile"><div class="ic" style="background:var(--go-dim);color:var(--go)">✓</div>
+      <h3>Feedback</h3><p>How a reviewer answered a specific finding, and why. Rejections carry
+      the most signal of anything stored here.</p></div>
+    <div class="tile"><div class="ic" style="background:#0d2a3d;color:var(--sky)">§</div>
+      <h3>Conventions</h3><p>Team rules, stored as standing directives so they apply to every
+      review rather than only to similar-looking diffs.</p></div>
+    <div class="tile"><div class="ic" style="background:#2a2410;color:var(--amber)">⚠</div>
+      <h3>Incidents</h3><p>A bug or outage tied to a code pattern, matched later on the shape of
+      the bug rather than its wording.</p></div>
+    <div class="tile"><div class="ic" style="background:#241d3d;color:var(--violet)">≡</div>
+      <h3>Reviews</h3><p>A summary of everything it has already said, so it does not say it
+      twice.</p></div>
+  </div>
 </section>
 
-<section class="wrap" id="learned">
-  <p class="hunk">@@ <b>notes from building it</b> @@</p>
-  <h2>Including the one we nearly published</h2>
-
-  <div class="two">
-    <div class="finding"><div class="tag">— WRONG</div><h3>Our A/B test compared two models</h3>
-      <p>Memory-off ran on one provider; memory-on fell back to another after a rate limit. The
-        result looked great and proved nothing. Both halves are now pinned to one provider, and
-        the run warns if they ever differ.</p></div>
-    <div class="finding"><div class="tag">+ LEARNED</div><h3>Rejections beat acceptances</h3>
-      <p>An accepted suggestion only tells you the reviewer was already right.</p></div>
-    <div class="finding"><div class="tag">+ LEARNED</div><h3>Rules and facts retrieve differently</h3>
-      <p>A convention should apply whether or not the diff looks familiar. Moving rules into
-        directives fixed a whole class of inconsistency.</p></div>
-    <div class="finding"><div class="tag">+ LEARNED</div><h3>Say how to match, not just what</h3>
-      <p>One paragraph telling the model to match incidents on the shape of a bug rather than its
-        wording changed behaviour more than any extra context.</p></div>
-    <div class="finding"><div class="tag">— WRONG</div><h3>A slow test is a bug report</h3>
-      <p>The suite jumped to 68 seconds. A rate-limit test was busy-waiting a full minute,
-        because sleep was mocked inside a loop that needed the clock to move.</p></div>
-    <div class="finding"><div class="tag">+ LEARNED</div><h3>Wait on purpose</h3>
-      <p>Pacing against a rolling token budget is cheaper than retry backoff, and deterministic,
-        which matters when anything downstream depends on timing.</p></div>
+<section class="wrap" id="impact">
+  <div class="head narrow">
+    <span class="kicker">Why it matters</span>
+    <h2>Review is where engineering time goes</h2>
+    <p class="lede">And the pressure on it is rising. More code is being written by machines,
+      and all of it still has to be read by people.</p>
   </div>
-  <p class="src" style="margin-top:22px">Longer write-ups:
-    <a href="https://dev.to/waifu_puller/hindsight-made-my-code-reviewer-stop-repeating-rejected-advice-5hmh">on memory design</a>,
-    <a href="https://dev.to/sasi_chandan_068c2e22e9b0/i-proved-hindsight-worked-then-found-my-test-was-broken-257b">on the broken comparison</a>.</p>
+  <div class="figs">
+    <div class="fig"><b>36.5M</b><p>professional developers worldwide</p><cite>SlashData, 2025</cite></div>
+    <div class="fig"><b>3–5 hrs</b><p>per developer, per week, spent reviewing code</p><cite>Academic survey median</cite></div>
+    <div class="fig"><b style="color:var(--amber)">81%</b><p>now spend more time reviewing AI-generated code</p><cite>Harness, 700 developers · vendor-run</cite></div>
+    <div class="fig"><b style="color:var(--go)">$420M</b><p>2026 revenue across AI code review tools, from ~$180M</p><cite>Category estimate</cite></div>
+  </div>
+
+  <div class="cols" style="margin-top:34px">
+    <div class="tile"><h3>Knowledge outlives people</h3><p>The engineer who knew why you don't
+      do X leaves. The rejection they recorded stays behind and keeps shaping reviews.</p></div>
+    <div class="tile"><h3>Post-mortems finally do something</h3><p>An incident stops being a
+      document nobody reopens and becomes a rule that flags the next change repeating it.</p></div>
+    <div class="tile"><h3>Onboarding compresses</h3><p>A new joiner's first pull request already
+      gets reviewed in house style, learned from everyone before them.</p></div>
+    <div class="tile"><h3>Signal improves with age</h3><p>Most tools get noisier as rules pile
+      up. This one narrows, because it learns what you turned down.</p></div>
+  </div>
+
+  <div style="margin-top:34px;display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
+              gap:0;border:1px solid var(--line);border-radius:var(--r);overflow:hidden;background:var(--surface)">
+    <div class="fig" style="border-bottom:0"><b style="font-size:26px">~2,200</b>
+      <p>tokens per review, memories included</p></div>
+    <div class="fig" style="border-bottom:0"><b style="font-size:26px">$0</b>
+      <p>to run — free tiers end to end, or fully local</p></div>
+    <div class="fig" style="border-bottom:0;border-right:0"><b style="font-size:26px">36</b>
+      <p>tests, MIT licensed, open source</p></div>
+  </div>
+</section>
+
+<section class="wrap" id="install">
+  <div class="head narrow">
+    <span class="kicker">Get started</span>
+    <h2>Running in about two minutes</h2>
+    <p class="lede">One free account for the memory, one free key for the model. Or neither, if
+      you run it entirely on your own machine.</p>
+  </div>
+
+  <div class="tabs" role="tablist">
+    <button role="tab" aria-selected="true" data-tab="cli">Command line</button>
+    <button role="tab" aria-selected="false" data-tab="claude">Claude Code</button>
+    <button role="tab" aria-selected="false" data-tab="mcp">Codex · Cursor · Antigravity</button>
+    <button role="tab" aria-selected="false" data-tab="local">Fully local</button>
+  </div>
+
+  <div class="pane" id="p-cli">
+    <h4><i>01</i>Install</h4>
+    <div class="code"><button class="copy" data-copy="pip install git+https://github.com/WaifuPuller/MemoLint">Copy</button>
+<pre><span class="p">$</span> pip install git+https://github.com/WaifuPuller/MemoLint</pre></div>
+    <h4><i>02</i>Two free keys, no card</h4>
+    <p>Hindsight holds the memory. Groq writes the reviews.</p>
+    <div class="code"><button class="copy" data-copy="HINDSIGHT_API_KEY=hsk_...
+GROQ_API_KEY=gsk_...">Copy</button>
+<pre><span class="p"># .env</span>
+HINDSIGHT_API_KEY=hsk_...   <span class="p">← ui.hindsight.vectorize.io</span>
+GROQ_API_KEY=gsk_...        <span class="p">← console.groq.com/keys</span></pre></div>
+    <h4><i>03</i>Review</h4>
+    <div class="code"><button class="copy" data-copy="memolint review --git main..HEAD">Copy</button>
+<pre><span class="p">$</span> memolint review --git main..HEAD
+<span class="p">$</span> memolint review --pr owner/repo#42 --post</pre></div>
+    <h4><i>04</i>Teach it — this is the part that compounds</h4>
+    <div class="code"><button class="copy" data-copy='memolint feedback F2 --reject --note "we do not type-hint private helpers"'>Copy</button>
+<pre><span class="p">$</span> memolint feedback F2 <span class="r">--reject</span> --note <span class="s">"we do not type-hint private helpers"</span>
+<span class="p">$</span> memolint teach <span class="s">"prefer guard clauses over nested ifs"</span>
+<span class="p">$</span> memolint incident <span class="s">"N+1 in checkout caused the Sept 3 outage"</span></pre></div>
+  </div>
+
+  <div class="pane" id="p-claude" hidden>
+    <h4><i>01</i>One line, nothing installed permanently</h4>
+    <div class="code"><button class="copy" data-copy="claude mcp add memolint -- uvx --from git+https://github.com/WaifuPuller/MemoLint memolint-mcp">Copy</button>
+<pre><span class="p">$</span> claude mcp add memolint -- uvx \
+    --from git+https://github.com/WaifuPuller/MemoLint memolint-mcp</pre></div>
+    <h4><i>02</i>Add the memory key</h4>
+    <div class="code"><button class="copy" data-copy="HINDSIGHT_API_KEY=hsk_...">Copy</button>
+<pre><span class="p"># .env</span>
+HINDSIGHT_API_KEY=hsk_...</pre></div>
+    <h4><i>03</i>What changes</h4>
+    <p>The agent calls <code style="font-family:var(--mono);font-size:13.5px;color:var(--go)">recall_team_memory</code>
+      before it writes code, so it follows your conventions the first time instead of being
+      corrected afterwards. It can also store a rule when you state one, log an incident, and
+      run a full review on demand.</p>
+    <div class="aside">Nothing is hosted. The client runs the server as a local process over
+      pipes. The only remote piece is the memory bank itself.</div>
+  </div>
+
+  <div class="pane" id="p-mcp" hidden>
+    <h4><i>01</i>Install the server</h4>
+    <div class="code"><button class="copy" data-copy="pip install git+https://github.com/WaifuPuller/MemoLint">Copy</button>
+<pre><span class="p">$</span> pip install git+https://github.com/WaifuPuller/MemoLint</pre></div>
+    <h4><i>02</i>Codex — <code style="font-family:var(--mono);font-size:13px">~/.codex/config.toml</code></h4>
+    <div class="code"><button class="copy" data-copy='[mcp_servers.memolint]
+command = "memolint-mcp"'>Copy</button>
+<pre>[mcp_servers.memolint]
+command = <span class="s">"memolint-mcp"</span></pre></div>
+    <h4><i>03</i>Cursor, Windsurf, Antigravity</h4>
+    <p>Same shape, in whichever MCP config file your client uses.</p>
+    <div class="code"><button class="copy" data-copy='{ "mcpServers": { "memolint": { "command": "memolint-mcp" } } }'>Copy</button>
+<pre>{ <span class="s">"mcpServers"</span>: { <span class="s">"memolint"</span>: { <span class="s">"command"</span>: <span class="s">"memolint-mcp"</span> } } }</pre></div>
+    <div class="aside">MCP is an open standard, so one server works with every client that
+      speaks it. Six tools are exposed, including recall, teach, and full review.</div>
+  </div>
+
+  <div class="pane" id="p-local" hidden>
+    <p style="margin-bottom:18px">No API keys, and no source code leaves your machine. Ollama
+      runs the model, Hindsight runs in Docker. For regulated codebases, or anywhere code
+      cannot go to a third party.</p>
+    <h4><i>01</i>Memory, self-hosted</h4>
+    <div class="code"><button class="copy" data-copy="docker run -it --pull always --name hindsight --shm-size=1g -p 8888:8888 -p 9999:9999 -e HINDSIGHT_API_EMBEDDINGS_PROVIDER=local -v hindsight-data:/home/hindsight/.pg0 ghcr.io/vectorize-io/hindsight:latest">Copy</button>
+<pre><span class="p">$</span> docker run -it --pull always --name hindsight \
+    --shm-size=1g -p 8888:8888 -p 9999:9999 \
+    -e HINDSIGHT_API_EMBEDDINGS_PROVIDER=local \
+    -v hindsight-data:/home/hindsight/.pg0 \
+    ghcr.io/vectorize-io/hindsight:latest</pre></div>
+    <h4><i>02</i>Model, local</h4>
+    <div class="code"><button class="copy" data-copy="ollama pull qwen2.5-coder:7b">Copy</button>
+<pre><span class="p">$</span> ollama pull qwen2.5-coder:7b</pre></div>
+    <h4><i>03</i>Point at both</h4>
+    <div class="code"><button class="copy" data-copy="HINDSIGHT_BASE_URL=http://localhost:8888
+LLM_PROVIDER=ollama">Copy</button>
+<pre><span class="p"># .env</span>
+HINDSIGHT_BASE_URL=http://localhost:8888
+LLM_PROVIDER=ollama</pre></div>
+    <div class="aside">Hindsight needs a model with structured output support for its own fact
+      extraction. A local model handles it, at some cost to extraction quality.</div>
+  </div>
 </section>
 
 <section class="wrap" id="team">
-  <p class="hunk">@@ <b>authors</b> @@</p>
-  <div class="who">
-    <b>Aaditya Singh</b><em>memory design</em>
-    <a href="https://github.com/WaifuPuller">github</a>
-    <a href="https://www.linkedin.com/in/aaditya-singh-408968357">linkedin</a>
-    <a href="https://dev.to/waifu_puller/hindsight-made-my-code-reviewer-stop-repeating-rejected-advice-5hmh">article</a>
+  <div class="head narrow">
+    <span class="kicker">Built by</span>
+    <h2>Two engineers, one deadline</h2>
+    <p class="lede">Including the part where our own before-and-after test turned out to be
+      comparing two different models. We wrote that up rather than quietly fixing it.</p>
   </div>
-  <div class="who">
-    <b>Sasi Chandan</b><em>evaluation and runtime</em>
-    <a href="https://github.com/sasichandan23">github</a>
-    <a href="https://www.linkedin.com/in/sasi-chandan-733054365">linkedin</a>
-    <a href="https://dev.to/sasi_chandan_068c2e22e9b0/i-proved-hindsight-worked-then-found-my-test-was-broken-257b">article</a>
+  <div class="people">
+    <div class="person">
+      <h3>Aaditya Singh</h3><div class="role">Memory design</div>
+      <a href="https://github.com/WaifuPuller">GitHub</a>
+      <a href="https://www.linkedin.com/in/aaditya-singh-408968357">LinkedIn</a>
+      <a href="https://dev.to/waifu_puller/hindsight-made-my-code-reviewer-stop-repeating-rejected-advice-5hmh">Article</a>
+    </div>
+    <div class="person">
+      <h3>Sasi Chandan</h3><div class="role">Evaluation and runtime</div>
+      <a href="https://github.com/sasichandan23">GitHub</a>
+      <a href="https://www.linkedin.com/in/sasi-chandan-733054365">LinkedIn</a>
+      <a href="https://dev.to/sasi_chandan_068c2e22e9b0/i-proved-hindsight-worked-then-found-my-test-was-broken-257b">Article</a>
+    </div>
   </div>
 </section>
 
-<footer class="wrap">
-  MIT licensed · built on <a href="https://github.com/vectorize-io/hindsight">Hindsight</a>
-  from Vectorize<br>
-  <a href="https://github.com/WaifuPuller/MemoLint">source</a> ·
-  <a href="https://youtu.be/jWx0-Nl4BRk">demo</a> ·
-  <a href="https://hindsight.vectorize.io/">docs</a> ·
-  <a href="https://vectorize.io/what-is-agent-memory">what is agent memory</a>
-</footer>
+<section class="wrap" style="padding-top:0">
+  <div class="final">
+    <h2>Stop explaining yourself twice.</h2>
+    <p>Free, open source, and running in under two minutes.</p>
+    <div class="cta">
+      <a class="btn go lg" href="#install">Get started</a>
+      <a class="btn lg" href="https://github.com/WaifuPuller/MemoLint">Star on GitHub</a>
+    </div>
+  </div>
+</section>
+
+<footer><div class="wrap">
+  <span class="sp">MemoLint · MIT licensed · built on
+    <a href="https://github.com/vectorize-io/hindsight">Hindsight</a> from Vectorize</span>
+  <a href="https://github.com/WaifuPuller/MemoLint">Source</a>
+  <a href="https://youtu.be/jWx0-Nl4BRk">Demo</a>
+  <a href="https://hindsight.vectorize.io/">Docs</a>
+  <a href="https://vectorize.io/what-is-agent-memory">Agent memory</a>
+</div></footer>
 
 <script>
-  document.querySelectorAll(".copy").forEach(function (b) {
-    b.addEventListener("click", function () {
-      var t = b.getAttribute("data-copy"), label = b.textContent;
-      var ok = function () {
-        b.textContent = "copied"; b.classList.add("ok");
-        setTimeout(function () { b.textContent = label; b.classList.remove("ok"); }, 1500);
-      };
-      try { navigator.clipboard.writeText(t).then(ok, function () { fb(t, ok); }); }
-      catch (e) { fb(t, ok); }
+(function(){
+  // ── the hero switch: the product demonstrated in one gesture ──
+  var sw = document.getElementById("sw"), track = document.getElementById("track");
+  var off = document.getElementById("s-off"), on = document.getElementById("s-on");
+  var fmem = document.getElementById("f-mem"), ftok = document.getElementById("f-tok");
+
+  function count(el, to){                       // real measured numbers, animated in
+    var from = parseInt(el.textContent.replace(/,/g,""),10) || 0, t0 = null, d = 420;
+    function tick(ts){
+      if(!t0) t0 = ts;
+      var k = Math.min(1,(ts-t0)/d), e = 1-Math.pow(1-k,3);
+      el.textContent = Math.round(from+(to-from)*e).toLocaleString();
+      if(k<1) requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  }
+  function set(onState){
+    sw.dataset.on = String(onState);
+    track.setAttribute("aria-checked", String(onState));
+    var show = onState ? on : off, hide = onState ? off : on;
+    hide.hidden = true;
+    show.hidden = false;
+    show.style.opacity = "0"; show.style.transform = "translateY(6px)";
+    requestAnimationFrame(function(){ show.style.opacity="1"; show.style.transform="none"; });
+    count(fmem, onState ? 23 : 0);
+    count(ftok, onState ? 2206 : 1008);
+  }
+  track.addEventListener("click", function(){ set(sw.dataset.on !== "true"); });
+
+  // ── copy buttons ──
+  document.querySelectorAll(".copy").forEach(function(b){
+    b.addEventListener("click", function(){
+      var text = b.getAttribute("data-copy"), label = b.textContent;
+      var done = function(){ b.textContent="Copied"; b.classList.add("ok");
+        setTimeout(function(){ b.textContent=label; b.classList.remove("ok"); },1500); };
+      try { navigator.clipboard.writeText(text).then(done, function(){ fb(text,done); }); }
+      catch(e){ fb(text,done); }
     });
   });
-  function fb(t, ok) {
-    var a = document.createElement("textarea");
-    a.value = t; a.style.position = "fixed"; a.style.opacity = "0";
+  function fb(t,done){
+    var a=document.createElement("textarea"); a.value=t;
+    a.style.position="fixed"; a.style.opacity="0";
     document.body.appendChild(a); a.select();
-    try { document.execCommand("copy"); ok(); } catch (e) {}
+    try{ document.execCommand("copy"); done(); }catch(e){}
     document.body.removeChild(a);
   }
+
+  // ── install tabs ──
   var tabs = document.querySelectorAll(".tabs button");
-  tabs.forEach(function (t) {
-    t.addEventListener("click", function () {
-      tabs.forEach(function (o) {
-        o.setAttribute("aria-selected", String(o === t));
-        document.getElementById("p-" + o.dataset.tab).hidden = (o !== t);
+  tabs.forEach(function(t){
+    t.addEventListener("click", function(){
+      tabs.forEach(function(o){
+        o.setAttribute("aria-selected", String(o===t));
+        document.getElementById("p-"+o.dataset.tab).hidden = (o!==t);
       });
     });
   });
+})();
 </script>
 </body>
 </html>
