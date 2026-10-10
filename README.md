@@ -84,6 +84,22 @@ memolint replay docs/demo-transcript.ansi --marks       # section cue points
 
 Each repository gets its own memory bank, derived from the git remote or `--repo`.
 
+## Use it from your coding agent
+
+Reviewing code after it is written is the narrow use of a team memory bank. The broader
+one is letting the agent that *writes* the code consult the same memory first.
+
+Memolint ships an MCP server, so Claude Code, Codex, Cursor and anything else that speaks
+the Model Context Protocol can query the same bank:
+
+```bash
+claude mcp add memolint -- memolint-mcp
+```
+
+The agent is instructed to call `recall_team_memory` before writing code, so it follows
+your conventions instead of being corrected afterwards. It can also store a rule when you
+state one, record an incident, and run a full review. See [docs/MCP.md](docs/MCP.md).
+
 ## How Hindsight memory is used
 
 ```
@@ -143,6 +159,7 @@ src/memolint/
   github_client.py  PR read, review post, comment read
   state.py          local finding ids so `feedback F2` works
   cli.py            commands + the scripted demo
+  mcp_server.py     the same memory, exposed over MCP to any coding agent
 demo/prs/           three hand-written PR diffs for the demo
 tests/              parsing and budgeting tests (no network)
 ```
