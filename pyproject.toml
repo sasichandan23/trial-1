@@ -9,6 +9,22 @@ description = "A code reviewer that remembers your team's precedents. Built on H
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.10"
+authors = [
+  { name = "Aaditya Singh" },
+  { name = "Sasi Chandan" },
+]
+keywords = ["code-review", "agent-memory", "mcp", "hindsight", "ai-agents", "llm"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Software Development :: Quality Assurance",
+  "Topic :: Software Development :: Version Control :: Git",
+]
 dependencies = [
   "hindsight-client>=0.10",
   "openai>=1.50",
@@ -18,6 +34,11 @@ dependencies = [
   "requests>=2.31",
   "mcp>=2.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/WaifuPuller/MemoLint"
+Repository = "https://github.com/WaifuPuller/MemoLint"
+Issues = "https://github.com/WaifuPuller/MemoLint/issues"
 
 [project.scripts]
 memolint = "memolint.cli:app"

@@ -20,7 +20,21 @@ memolint demo
 
 Three PRs against a fictional `orderflow` service. PR 1 gets a generic review. The team responds: accepts some findings, rejects one, states two conventions. PR 2 already reflects that. The team links the N+1 finding to a past outage. PR 3 is reviewed twice, memory off and memory on, side by side. The difference is the pitch.
 
-## Setup
+## Install
+
+Once it is on PyPI:
+
+```bash
+pipx install memolint
+```
+
+Or run the MCP server with no install at all:
+
+```bash
+claude mcp add memolint -- uvx --from memolint memolint-mcp
+```
+
+## Setup from source
 
 ```bash
 git clone <this repo> && cd memolint
@@ -33,7 +47,7 @@ Fill in `.env`. Four keys, all free, none need a card:
 
 | Key | Where | What it does |
 |---|---|---|
-| `HINDSIGHT_BASE_URL` + `HINDSIGHT_API_KEY` | https://ui.hindsight.vectorize.io | The memory. Free starter credits; base URL is in the dashboard. |
+| `HINDSIGHT_API_KEY` | https://ui.hindsight.vectorize.io | The memory. Free starter credits. The base URL defaults to Hindsight Cloud, so you only need the key. |
 | `GROQ_API_KEY` | https://console.groq.com/keys | Writes the reviews. ~8K tokens/min free, and a review fits in one call. |
 | `GEMINI_API_KEY` | https://aistudio.google.com/apikey | Automatic backup when Groq's daily cap is hit. No extra config. |
 | `GITHUB_TOKEN` | https://github.com/settings/tokens | Review real PRs and learn from replies. Contents: read, Pull requests: read+write. |

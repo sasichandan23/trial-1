@@ -118,10 +118,13 @@ def _llm_chain() -> tuple[LLMConfig, list[LLMConfig]]:
     return primary, fallbacks
 
 
+# Hindsight Cloud's API endpoint. The docs point at the dashboard address, which is the
+# web UI, so defaulting this saves every new user the same wrong turn.
+HINDSIGHT_CLOUD = "https://api.hindsight.vectorize.io"
+
+
 def load_settings(require_llm: bool = True) -> Settings:
-    base_url = os.getenv("HINDSIGHT_BASE_URL", "").strip()
-    if not base_url:
-        raise ConfigError("HINDSIGHT_BASE_URL is not set. See .env.example.")
+    base_url = os.getenv("HINDSIGHT_BASE_URL", "").strip() or HINDSIGHT_CLOUD
     if require_llm:
         primary, fallbacks = _llm_chain()
     else:
