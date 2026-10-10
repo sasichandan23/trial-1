@@ -12,14 +12,6 @@ The LLM is stateless. The memory bank is not. That is the whole product.
 
 Runs entirely on free tiers: Groq (or Gemini) for the reviewer, Hindsight Cloud free credits or a self-hosted Hindsight for memory.
 
-## 60-second demo
-
-```bash
-memolint demo
-```
-
-Three PRs against a fictional `orderflow` service. PR 1 gets a generic review. The team responds: accepts some findings, rejects one, states two conventions. PR 2 already reflects that. The team links the N+1 finding to a past outage. PR 3 is reviewed twice, memory off and memory on, side by side. The difference is the pitch.
-
 ## Install
 
 Works today, straight from this repository:
@@ -38,10 +30,18 @@ claude mcp add memolint -- uvx --from git+https://github.com/WaifuPuller/MemoLin
 Once the package is on PyPI the same commands shorten to `pipx install memolint` and
 `uvx --from memolint memolint-mcp`. See [docs/PUBLISHING.md](docs/PUBLISHING.md).
 
+## 60-second demo
+
+```bash
+memolint demo
+```
+
+Three PRs against a fictional `orderflow` service. PR 1 gets a generic review. The team responds: accepts some findings, rejects one, states two conventions. PR 2 already reflects that. The team links the N+1 finding to a past outage. PR 3 is reviewed twice, memory off and memory on, side by side. The difference is the pitch.
+
 ## Setup from source
 
 ```bash
-git clone <this repo> && cd memolint
+git clone https://github.com/WaifuPuller/MemoLint && cd MemoLint
 python -m venv .venv && . .venv/Scripts/activate   # Windows; on macOS/Linux: source .venv/bin/activate
 pip install -e .
 cp .env.example .env
