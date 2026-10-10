@@ -22,17 +22,21 @@ Three PRs against a fictional `orderflow` service. PR 1 gets a generic review. T
 
 ## Install
 
-Once it is on PyPI:
+Works today, straight from this repository:
 
 ```bash
-pipx install memolint
+pip install git+https://github.com/WaifuPuller/MemoLint
 ```
 
-Or run the MCP server with no install at all:
+That gives you both `memolint` and `memolint-mcp`. To wire the MCP server into a coding
+agent in one line, with nothing installed permanently:
 
 ```bash
-claude mcp add memolint -- uvx --from memolint memolint-mcp
+claude mcp add memolint -- uvx --from git+https://github.com/WaifuPuller/MemoLint memolint-mcp
 ```
+
+Once the package is on PyPI the same commands shorten to `pipx install memolint` and
+`uvx --from memolint memolint-mcp`. See [docs/PUBLISHING.md](docs/PUBLISHING.md).
 
 ## Setup from source
 

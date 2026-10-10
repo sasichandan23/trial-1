@@ -32,11 +32,19 @@ single habit is what turns this from a review tool into a memory layer.
 
 ## Install
 
+No PyPI account or clone required:
+
+```bash
+pip install git+https://github.com/WaifuPuller/MemoLint
+```
+
+Or from a checkout:
+
 ```bash
 pip install -e .
 ```
 
-That puts `memolint-mcp` on your PATH. It needs the same `.env` as the CLI, so follow
+Either puts `memolint-mcp` on your PATH. It needs the same `.env` as the CLI, so follow
 [KEYS.md](../KEYS.md) first. Only the Hindsight values are required for the memory tools;
 `review_changes` also needs a model key.
 
