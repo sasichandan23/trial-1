@@ -45,18 +45,22 @@ Only the first two are required. Step-by-step instructions for each are in [KEYS
 
 **Where to put them depends on how you run it.**
 
-Using the CLI: a `.env` file in the directory you run `memolint` from.
+**Using the CLI**, a file called `.env` in the directory you run `memolint` from, which is
+normally the root of the repository you are reviewing:
 
 ```bash
+cd ~/code/your-project
 printf 'HINDSIGHT_API_KEY=hsk_...
 GROQ_API_KEY=gsk_...
 ' > .env
 memolint init          # creates the bank, and fails loudly if a key is wrong
 ```
 
-Using the MCP server: in the server's own `env` block, shown in the next section. A client
-launches the server from a working directory of its choosing, so a `.env` file is not
-reliably found. An environment variable always is.
+**Using the MCP server**, in the server's own `env` block, inside your client's MCP config
+file. For Claude Code that is `.mcp.json` at your project root; for Codex it is
+`~/.codex/config.toml`. A client launches the server from a working directory of its
+choosing, so a `.env` file is not reliably found. An environment variable always is.
+The next section has the exact block.
 
 ### Setup from source
 
@@ -133,6 +137,7 @@ the Model Context Protocol can query the same bank. Put your Hindsight key in th
 `env` block, not in a `.env` file:
 
 ```json
+// your-project/.mcp.json
 {
   "mcpServers": {
     "memolint": {
@@ -143,9 +148,13 @@ the Model Context Protocol can query the same bank. Put your Hindsight key in th
 }
 ```
 
-In Claude Code that goes in `.mcp.json` at the project root, so the whole team picks it up.
-Codex uses `~/.codex/config.toml`; Cursor, Windsurf and Antigravity each have their own
-file. Same shape in all of them.
+| Client | Config file |
+|---|---|
+| Claude Code | `.mcp.json` at your project root, so the team picks it up from git |
+| Codex | `~/.codex/config.toml`, using TOML rather than JSON |
+| Cursor, Windsurf, Antigravity | Each keeps its own JSON file. Search that client's settings for "MCP" to find it. |
+
+The block is the same shape everywhere; only the file location differs.
 
 ### Then there is nothing to learn
 

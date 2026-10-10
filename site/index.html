@@ -440,10 +440,13 @@ footer .sp{margin-right:auto}
     <div class="code"><button class="copy" data-copy="pip install git+https://github.com/WaifuPuller/MemoLint">Copy</button>
 <pre><span class="p">$</span> pip install git+https://github.com/WaifuPuller/MemoLint</pre></div>
     <h4><i>02</i>Two free keys, no card</h4>
-    <p>Hindsight holds the memory. Groq writes the reviews.</p>
+    <p>Hindsight holds the memory. Groq writes the reviews. Both go in a file called
+      <code style="font-family:var(--mono);font-size:13px">.env</code> in the directory you
+      run <code style="font-family:var(--mono);font-size:13px">memolint</code> from, which is
+      normally the root of the repository you are reviewing.</p>
     <div class="code"><button class="copy" data-copy="HINDSIGHT_API_KEY=hsk_...
 GROQ_API_KEY=gsk_...">Copy</button>
-<pre><span class="p"># .env</span>
+<pre><span class="p"># your-project/.env</span>
 HINDSIGHT_API_KEY=hsk_...   <span class="p">← ui.hindsight.vectorize.io</span>
 GROQ_API_KEY=gsk_...        <span class="p">← console.groq.com/keys</span></pre></div>
     <h4><i>03</i>Check it connected</h4>
@@ -473,8 +476,10 @@ GROQ_API_KEY=gsk_...        <span class="p">← console.groq.com/keys</span></pr
 <pre><span class="p">$</span> claude mcp add memolint -- uvx \
     --from git+https://github.com/WaifuPuller/MemoLint memolint-mcp</pre></div>
     <h4><i>02</i>Give it your key</h4>
-    <p>Put it in the server's own config rather than a <code style="font-family:var(--mono);font-size:13px">.env</code>
-      file. The agent launches the server from whatever directory it likes, so a file is not
+    <p>Goes in <code style="font-family:var(--mono);font-size:13px">.mcp.json</code> at the
+      root of your project, so the whole team picks it up from version control. Put it in the
+      server's own config rather than a <code style="font-family:var(--mono);font-size:13px">.env</code>
+      file: the agent launches the server from whatever directory it likes, so a file is not
       reliably found. An environment variable always is.</p>
     <div class="code"><button class="copy" data-copy='{
   "mcpServers": {
@@ -484,7 +489,8 @@ GROQ_API_KEY=gsk_...        <span class="p">← console.groq.com/keys</span></pr
     }
   }
 }'>Copy</button>
-<pre>{
+<pre><span class="p">// your-project/.mcp.json</span>
+{
   <span class="s">"mcpServers"</span>: {
     <span class="s">"memolint"</span>: {
       <span class="s">"command"</span>: <span class="s">"memolint-mcp"</span>,
@@ -526,7 +532,9 @@ command = "memolint-mcp"'>Copy</button>
 command = <span class="s">"memolint-mcp"</span>
 env = { HINDSIGHT_API_KEY = <span class="s">"hsk_..."</span> }</pre></div>
     <h4><i>03</i>Cursor, Windsurf, Antigravity</h4>
-    <p>Same shape, in whichever MCP config file your client uses.</p>
+    <p>Each keeps its MCP servers in its own JSON file. Search that client's settings for
+      "MCP" to find it, then paste the block below. The shape is identical everywhere; only
+      the file location differs, and we would rather you check than we guess wrong.</p>
     <div class="code"><button class="copy" data-copy='{ "mcpServers": { "memolint": { "command": "memolint-mcp", "env": { "HINDSIGHT_API_KEY": "hsk_..." } } } }'>Copy</button>
 <pre>{ <span class="s">"mcpServers"</span>: { <span class="s">"memolint"</span>: {
     <span class="s">"command"</span>: <span class="s">"memolint-mcp"</span>,
@@ -575,9 +583,11 @@ env = { HINDSIGHT_API_KEY = <span class="s">"hsk_..."</span> }</pre></div>
     <div class="code"><button class="copy" data-copy="ollama pull qwen2.5-coder:7b">Copy</button>
 <pre><span class="p">$</span> ollama pull qwen2.5-coder:7b</pre></div>
     <h4><i>03</i>Point at both</h4>
+    <p>Same <code style="font-family:var(--mono);font-size:13px">.env</code> in the repository
+      you are reviewing. No keys needed at all in this mode.</p>
     <div class="code"><button class="copy" data-copy="HINDSIGHT_BASE_URL=http://localhost:8888
 LLM_PROVIDER=ollama">Copy</button>
-<pre><span class="p"># .env</span>
+<pre><span class="p"># your-project/.env</span>
 HINDSIGHT_BASE_URL=http://localhost:8888
 LLM_PROVIDER=ollama</pre></div>
     <div class="aside">Hindsight needs a model with structured output support for its own fact
