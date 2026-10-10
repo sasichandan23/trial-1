@@ -30,24 +30,9 @@ claude mcp add memolint -- uvx --from git+https://github.com/WaifuPuller/MemoLin
 Once the package is on PyPI the same commands shorten to `pipx install memolint` and
 `uvx --from memolint memolint-mcp`. See [docs/PUBLISHING.md](docs/PUBLISHING.md).
 
-## 60-second demo
+## Get your keys
 
-```bash
-memolint demo
-```
-
-Three PRs against a fictional `orderflow` service. PR 1 gets a generic review. The team responds: accepts some findings, rejects one, states two conventions. PR 2 already reflects that. The team links the N+1 finding to a past outage. PR 3 is reviewed twice, memory off and memory on, side by side. The difference is the pitch.
-
-## Setup from source
-
-```bash
-git clone https://github.com/WaifuPuller/MemoLint && cd MemoLint
-python -m venv .venv && . .venv/Scripts/activate   # Windows; on macOS/Linux: source .venv/bin/activate
-pip install -e .
-cp .env.example .env
-```
-
-Fill in `.env`. Four keys, all free, none need a card:
+Needed whether you installed with pip or cloned the repo. All free, none need a card:
 
 | Key | Where | What it does |
 |---|---|---|
@@ -56,7 +41,33 @@ Fill in `.env`. Four keys, all free, none need a card:
 | `GEMINI_API_KEY` | https://aistudio.google.com/apikey | Automatic backup when Groq's daily cap is hit. No extra config. |
 | `GITHUB_TOKEN` | https://github.com/settings/tokens | Review real PRs and learn from replies. Contents: read, Pull requests: read+write. |
 
-Only the first two are strictly required. Step-by-step instructions for each are in [KEYS.md](KEYS.md).
+Only the first two are required. Step-by-step instructions for each are in [KEYS.md](KEYS.md).
+
+**Where to put them depends on how you run it.**
+
+Using the CLI: a `.env` file in the directory you run `memolint` from.
+
+```bash
+printf 'HINDSIGHT_API_KEY=hsk_...
+GROQ_API_KEY=gsk_...
+' > .env
+memolint init          # creates the bank, and fails loudly if a key is wrong
+```
+
+Using the MCP server: in the server's own `env` block, shown in the next section. A client
+launches the server from a working directory of its choosing, so a `.env` file is not
+reliably found. An environment variable always is.
+
+### Setup from source
+
+Only if you want to modify it. Installing with pip is enough to use it.
+
+```bash
+git clone https://github.com/WaifuPuller/MemoLint && cd MemoLint
+python -m venv .venv && . .venv/Scripts/activate   # macOS/Linux: source .venv/bin/activate
+pip install -e .
+cp .env.example .env
+```
 
 Memolint tries providers in order and fails over on its own. A rate limit that clears in
 seconds is waited out; one that would take minutes moves the run to the next provider
@@ -77,6 +88,16 @@ docker run -it --pull always --name hindsight --shm-size=1g -p 8888:8888 -p 9999
 ```
 
 Then `HINDSIGHT_BASE_URL=http://localhost:8888` and leave `HINDSIGHT_API_KEY` empty. Tip: use a second Groq key for Hindsight so its extraction calls don't share the reviewer's rate limit.
+
+## 60-second demo
+
+Needs the two keys above. Everything it prints is a real call to Hindsight and a real model.
+
+```bash
+memolint demo
+```
+
+Three PRs against a fictional `orderflow` service. PR 1 gets a generic review. The team responds: accepts some findings, rejects one, states two conventions. PR 2 already reflects that. The team links the N+1 finding to a past outage. PR 3 is reviewed twice, memory off and memory on, side by side. The difference is the pitch.
 
 ## Usage
 
@@ -108,15 +129,51 @@ Reviewing code after it is written is the narrow use of a team memory bank. The 
 one is letting the agent that *writes* the code consult the same memory first.
 
 Memolint ships an MCP server, so Claude Code, Codex, Cursor and anything else that speaks
-the Model Context Protocol can query the same bank:
+the Model Context Protocol can query the same bank. Put your Hindsight key in the server's
+`env` block, not in a `.env` file:
 
-```bash
-claude mcp add memolint -- memolint-mcp
+```json
+{
+  "mcpServers": {
+    "memolint": {
+      "command": "memolint-mcp",
+      "env": { "HINDSIGHT_API_KEY": "hsk_..." }
+    }
+  }
+}
 ```
 
-The agent is instructed to call `recall_team_memory` before writing code, so it follows
-your conventions instead of being corrected afterwards. It can also store a rule when you
-state one, record an incident, and run a full review. See [docs/MCP.md](docs/MCP.md).
+In Claude Code that goes in `.mcp.json` at the project root, so the whole team picks it up.
+Codex uses `~/.codex/config.toml`; Cursor, Windsurf and Antigravity each have their own
+file. Same shape in all of them.
+
+### Then there is nothing to learn
+
+You talk to the agent as usual and it decides when to reach for memory:
+
+```
+> review my changes before I open a PR
+> what does this team think about error handling?
+> remember that we always use guard clauses here
+> that suggestion was wrong, we do not type-hint private helpers
+> the Sept 3 outage was an N+1 in checkout, remember that
+```
+
+The first two read the bank. The last three write to it, so your next review already knows.
+Six tools are exposed in total; see [docs/MCP.md](docs/MCP.md).
+
+### Who can see your memory
+
+The server runs locally and stores nothing. Memory lives in a Hindsight bank, and the key
+decides which bank you reach.
+
+- **On your own**, your key means your own private bank. Installing from this public repo
+  exposes nobody else's memory to you, or yours to them.
+- **As a team**, everyone uses a key from the *same* Hindsight account, so you share one
+  bank. A rule a colleague teaches shows up in your next review.
+- **Where code cannot leave**, self-host Hindsight and point everyone at that URL.
+
+Separate accounts mean separate banks, even for the same repository.
 
 ## How Hindsight memory is used
 
