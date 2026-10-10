@@ -432,6 +432,7 @@ footer .sp{margin-right:auto}
     <button role="tab" aria-selected="false" data-tab="claude">Claude Code</button>
     <button role="tab" aria-selected="false" data-tab="mcp">Codex · Cursor · Antigravity</button>
     <button role="tab" aria-selected="false" data-tab="local">Fully local</button>
+    <button role="tab" aria-selected="false" data-tab="openclaw">OpenClaw</button>
   </div>
 
   <div class="pane" id="p-cli">
@@ -445,15 +446,25 @@ GROQ_API_KEY=gsk_...">Copy</button>
 <pre><span class="p"># .env</span>
 HINDSIGHT_API_KEY=hsk_...   <span class="p">← ui.hindsight.vectorize.io</span>
 GROQ_API_KEY=gsk_...        <span class="p">← console.groq.com/keys</span></pre></div>
-    <h4><i>03</i>Review</h4>
+    <h4><i>03</i>Check it connected</h4>
+    <p>Creates the memory bank for this repository. If a key is wrong, this is where you find out.</p>
+    <div class="code"><button class="copy" data-copy="memolint init">Copy</button>
+<pre><span class="p">$</span> memolint init
+<span class="s">Bank ready:</span> memolint-your-org-your-repo</pre></div>
+    <h4><i>04</i>Review</h4>
     <div class="code"><button class="copy" data-copy="memolint review --git main..HEAD">Copy</button>
-<pre><span class="p">$</span> memolint review --git main..HEAD
-<span class="p">$</span> memolint review --pr owner/repo#42 --post</pre></div>
-    <h4><i>04</i>Teach it — this is the part that compounds</h4>
+<pre><span class="p">$</span> memolint review --git main..HEAD        <span class="p"># a branch</span>
+<span class="p">$</span> memolint review --diff changes.diff      <span class="p"># a patch file</span>
+<span class="p">$</span> memolint review --pr owner/repo#42 --post <span class="p"># a real PR, posts comments</span></pre></div>
+    <h4><i>05</i>Teach it — this is the part that compounds</h4>
     <div class="code"><button class="copy" data-copy='memolint feedback F2 --reject --note "we do not type-hint private helpers"'>Copy</button>
 <pre><span class="p">$</span> memolint feedback F2 <span class="r">--reject</span> --note <span class="s">"we do not type-hint private helpers"</span>
 <span class="p">$</span> memolint teach <span class="s">"prefer guard clauses over nested ifs"</span>
 <span class="p">$</span> memolint incident <span class="s">"N+1 in checkout caused the Sept 3 outage"</span></pre></div>
+    <h4><i>06</i>See what it knows</h4>
+    <div class="code"><button class="copy" data-copy="memolint memories">Copy</button>
+<pre><span class="p">$</span> memolint memories
+<span class="p">$</span> memolint ask <span class="s">"what does this team care about in reviews?"</span></pre></div>
   </div>
 
   <div class="pane" id="p-claude" hidden>
@@ -470,6 +481,11 @@ HINDSIGHT_API_KEY=hsk_...</pre></div>
       before it writes code, so it follows your conventions the first time instead of being
       corrected afterwards. It can also store a rule when you state one, log an incident, and
       run a full review on demand.</p>
+    <h4><i>04</i>Confirm it is wired up</h4>
+    <p>Ask Claude Code a question only the memory can answer. If it calls the tool, you are done.</p>
+    <div class="code"><button class="copy" data-copy="what does this team care about in reviews?">Copy</button>
+<pre><span class="p">&gt;</span> what does this team care about in reviews?
+<span class="p">  → calls</span> <span class="s">recall_team_memory</span></pre></div>
     <div class="aside">Nothing is hosted. The client runs the server as a local process over
       pipes. The only remote piece is the memory bank itself.</div>
   </div>
@@ -489,6 +505,31 @@ command = <span class="s">"memolint-mcp"</span></pre></div>
 <pre>{ <span class="s">"mcpServers"</span>: { <span class="s">"memolint"</span>: { <span class="s">"command"</span>: <span class="s">"memolint-mcp"</span> } } }</pre></div>
     <div class="aside">MCP is an open standard, so one server works with every client that
       speaks it. Six tools are exposed, including recall, teach, and full review.</div>
+  </div>
+
+  <div class="pane" id="p-openclaw" hidden>
+    <p style="margin-bottom:18px">Two different things are worth separating here. OpenClaw
+      agents can get long-term memory from Hindsight directly, through an official plugin that
+      Vectorize maintains. MemoLint is a separate tool that reviews code using the same memory
+      system. You can run either, or both against the same bank.</p>
+    <h4><i>01</i>Give OpenClaw agents memory — official Hindsight plugin</h4>
+    <div class="code"><button class="copy" data-copy="openclaw plugins install @vectorize-io/hindsight-openclaw">Copy</button>
+<pre><span class="p">$</span> openclaw plugins install @vectorize-io/hindsight-openclaw</pre></div>
+    <h4><i>02</i>Run its setup wizard</h4>
+    <p>Offers three modes: Hindsight Cloud, an external API, or an embedded local daemon that
+      bundles the memory engine and its database into one process.</p>
+    <div class="code"><button class="copy" data-copy="npx --package @vectorize-io/hindsight-openclaw hindsight-openclaw-setup">Copy</button>
+<pre><span class="p">$</span> npx --package @vectorize-io/hindsight-openclaw hindsight-openclaw-setup
+<span class="p">$</span> openclaw gateway</pre></div>
+    <h4><i>03</i>Add MemoLint for code review</h4>
+    <p>MemoLint speaks MCP, so any client that supports it can reach the same memory bank. Use
+      the Codex and Cursor tab for the config shape.</p>
+    <div class="code"><button class="copy" data-copy="pip install git+https://github.com/WaifuPuller/MemoLint">Copy</button>
+<pre><span class="p">$</span> pip install git+https://github.com/WaifuPuller/MemoLint</pre></div>
+    <div class="aside">The plugin commands above are Vectorize's, from the Hindsight
+      integration docs, not ours. We have not tested MemoLint's MCP server inside OpenClaw
+      specifically. Check whether your OpenClaw version supports MCP clients before relying
+      on step three.</div>
   </div>
 
   <div class="pane" id="p-local" hidden>
