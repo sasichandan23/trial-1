@@ -48,24 +48,46 @@ Either puts `memolint-mcp` on your PATH. It needs the same `.env` as the CLI, so
 [KEYS.md](../KEYS.md) first. Only the Hindsight values are required for the memory tools;
 `review_changes` also needs a model key.
 
+## Where the API key goes
+
+Put `HINDSIGHT_API_KEY` in the server's own `env` block, not in a `.env` file. The client
+launches the server from whatever working directory it chooses, so a `.env` is not reliably
+discovered; an environment variable always is. Verified: the server runs correctly from a
+directory with no `.env` present when the key is passed this way.
+
 ## Claude Code
-
-```bash
-claude mcp add memolint -- memolint-mcp
-```
-
-Or add it to `.mcp.json` in the project root so the whole team gets it:
 
 ```json
 {
   "mcpServers": {
     "memolint": {
       "command": "memolint-mcp",
-      "env": { "MEMOLINT_REPO": "owner/repo" }
+      "env": {
+        "HINDSIGHT_API_KEY": "hsk_...",
+        "MEMOLINT_REPO": "owner/repo"
+      }
     }
   }
 }
 ```
+
+Put that in `.mcp.json` at the project root and the whole team picks it up. `MEMOLINT_REPO`
+is optional; without it the repository is taken from the `origin` remote.
+
+## Using it, once it is wired up
+
+There are no commands to learn. The agent decides when to reach for memory:
+
+```
+> review my changes before I open a PR
+> what does this team think about error handling?
+> remember that we always use guard clauses here
+> that suggestion was wrong, we do not type-hint private helpers
+> the Sept 3 outage was an N+1 in checkout, remember that
+```
+
+The first two call `recall_team_memory` or `review_changes`. The last three write to the
+bank, so the next review already knows.
 
 ## Codex
 

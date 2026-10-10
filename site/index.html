@@ -472,16 +472,41 @@ GROQ_API_KEY=gsk_...        <span class="p">← console.groq.com/keys</span></pr
     <div class="code"><button class="copy" data-copy="claude mcp add memolint -- uvx --from git+https://github.com/WaifuPuller/MemoLint memolint-mcp">Copy</button>
 <pre><span class="p">$</span> claude mcp add memolint -- uvx \
     --from git+https://github.com/WaifuPuller/MemoLint memolint-mcp</pre></div>
-    <h4><i>02</i>Add the memory key</h4>
-    <div class="code"><button class="copy" data-copy="HINDSIGHT_API_KEY=hsk_...">Copy</button>
-<pre><span class="p"># .env</span>
-HINDSIGHT_API_KEY=hsk_...</pre></div>
-    <h4><i>03</i>What changes</h4>
+    <h4><i>02</i>Give it your key</h4>
+    <p>Put it in the server's own config rather than a <code style="font-family:var(--mono);font-size:13px">.env</code>
+      file. The agent launches the server from whatever directory it likes, so a file is not
+      reliably found. An environment variable always is.</p>
+    <div class="code"><button class="copy" data-copy='{
+  "mcpServers": {
+    "memolint": {
+      "command": "memolint-mcp",
+      "env": { "HINDSIGHT_API_KEY": "hsk_..." }
+    }
+  }
+}'>Copy</button>
+<pre>{
+  <span class="s">"mcpServers"</span>: {
+    <span class="s">"memolint"</span>: {
+      <span class="s">"command"</span>: <span class="s">"memolint-mcp"</span>,
+      <span class="s">"env"</span>: { <span class="s">"HINDSIGHT_API_KEY"</span>: <span class="s">"hsk_..."</span> }
+    }
+  }
+}</pre></div>
+    <h4><i>03</i>Then just talk to it</h4>
+    <p>No commands to learn. The agent decides when to reach for memory, and you teach it in
+      the same breath as everything else.</p>
+    <div class="code"><button class="copy" data-copy="what does this team care about in reviews?">Copy</button>
+<pre><span class="p">&gt;</span> review my changes before I open a PR
+<span class="p">&gt;</span> what does this team think about error handling?
+<span class="p">&gt;</span> remember that we always use guard clauses here
+<span class="p">&gt;</span> that suggestion was wrong, we don<span class="s">'</span>t type-hint private helpers
+<span class="p">&gt;</span> the Sept 3 outage was an N+1 in checkout, remember that</pre></div>
+    <h4><i>04</i>What changes</h4>
     <p>The agent calls <code style="font-family:var(--mono);font-size:13.5px;color:var(--go)">recall_team_memory</code>
       before it writes code, so it follows your conventions the first time instead of being
       corrected afterwards. It can also store a rule when you state one, log an incident, and
       run a full review on demand.</p>
-    <h4><i>04</i>Confirm it is wired up</h4>
+    <h4><i>05</i>Confirm it is wired up</h4>
     <p>Ask Claude Code a question only the memory can answer. If it calls the tool, you are done.</p>
     <div class="code"><button class="copy" data-copy="what does this team care about in reviews?">Copy</button>
 <pre><span class="p">&gt;</span> what does this team care about in reviews?
@@ -498,11 +523,14 @@ HINDSIGHT_API_KEY=hsk_...</pre></div>
     <div class="code"><button class="copy" data-copy='[mcp_servers.memolint]
 command = "memolint-mcp"'>Copy</button>
 <pre>[mcp_servers.memolint]
-command = <span class="s">"memolint-mcp"</span></pre></div>
+command = <span class="s">"memolint-mcp"</span>
+env = { HINDSIGHT_API_KEY = <span class="s">"hsk_..."</span> }</pre></div>
     <h4><i>03</i>Cursor, Windsurf, Antigravity</h4>
     <p>Same shape, in whichever MCP config file your client uses.</p>
-    <div class="code"><button class="copy" data-copy='{ "mcpServers": { "memolint": { "command": "memolint-mcp" } } }'>Copy</button>
-<pre>{ <span class="s">"mcpServers"</span>: { <span class="s">"memolint"</span>: { <span class="s">"command"</span>: <span class="s">"memolint-mcp"</span> } } }</pre></div>
+    <div class="code"><button class="copy" data-copy='{ "mcpServers": { "memolint": { "command": "memolint-mcp", "env": { "HINDSIGHT_API_KEY": "hsk_..." } } } }'>Copy</button>
+<pre>{ <span class="s">"mcpServers"</span>: { <span class="s">"memolint"</span>: {
+    <span class="s">"command"</span>: <span class="s">"memolint-mcp"</span>,
+    <span class="s">"env"</span>: { <span class="s">"HINDSIGHT_API_KEY"</span>: <span class="s">"hsk_..."</span> } } } }</pre></div>
     <div class="aside">MCP is an open standard, so one server works with every client that
       speaks it. Six tools are exposed, including recall, teach, and full review.</div>
   </div>
