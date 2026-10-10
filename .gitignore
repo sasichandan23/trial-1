@@ -13,3 +13,5 @@ build/
 preview_data.json
 *.mp4
 *.wav
+dist/
+*.egg-info/
