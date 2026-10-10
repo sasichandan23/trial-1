@@ -5,486 +5,454 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>MemoLint — a code reviewer that remembers</title>
 <meta name="description" content="A code reviewer that remembers your team's conventions, rejected suggestions and past incidents. Built on Hindsight agent memory. Runs on free tiers.">
-<meta property="og:title" content="MemoLint — a code reviewer that remembers">
-<meta property="og:description" content="Same model, same diff, two completely different reviews. One of them has been here before.">
-<meta property="og:type" content="website">
+<meta property="og:title" content="MemoLint">
+<meta property="og:description" content="Same model, same diff, two different reviews. One of them has been here before.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chivo:wght@400;600;900&family=JetBrains+Mono:wght@400;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <style>
   :root{
-    color-scheme: dark;
-    --ink:#eef1f4; --dim:#9aa6b2; --faint:#5d6a77;
-    --bg:#0c1016; --panel:#141a22; --panel-2:#1a212b; --line:#28313d;
-    --hot:#ff6a3d; --cool:#5ad1c4; --warn:#ffc857;
-    --mono:"JetBrains Mono",ui-monospace,Consolas,monospace;
-    --ui:"Chivo",system-ui,-apple-system,sans-serif;
-    --gut: clamp(18px, 5vw, 56px);
+    color-scheme:dark;
+    /* Taken from the tool's own terminal output, not picked for decoration. */
+    --bg:#0d1117; --surface:#11161d; --rule:#262d36;
+    --ink:#e6edf3; --dim:#8b949e; --faint:#5a636d;
+    --add:#56d364;      /* diff green  — accepted */
+    --del:#f85149;      /* diff red    — high severity, rejected */
+    --meta:#bc8cff;     /* the colour `precedent:` prints in */
+    --key:#79c0ff;      /* identifiers */
+    --warn:#e3b341;
+    --mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+    --sans:"IBM Plex Sans",system-ui,sans-serif;
+    --gut:clamp(16px,4vw,40px);
   }
   *{box-sizing:border-box}
   html{scroll-behavior:smooth}
-  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--ui);
-       -webkit-font-smoothing:antialiased;line-height:1.6}
-  .wrap{max-width:1060px;margin:0 auto;padding-inline:var(--gut)}
-  a{color:var(--cool)}
-  h1,h2,h3{text-wrap:balance;letter-spacing:-.02em;margin:0}
-  section{padding-block:clamp(56px,9vw,104px);border-top:1px solid var(--line)}
-  .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.16em;text-transform:uppercase;
-           color:var(--hot);margin:0 0 14px}
-  h2{font-size:clamp(26px,4vw,40px);font-weight:900;margin-bottom:14px}
-  .lede{color:var(--dim);font-size:clamp(16px,2vw,18px);max-width:62ch;margin:0 0 32px}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.62;
+       -webkit-font-smoothing:antialiased;font-size:16px}
+  .wrap{max-width:980px;margin:0 auto;padding-inline:var(--gut)}
+  a{color:var(--key)}
+  p{max-width:66ch}
 
-  /* ---- nav ---- */
-  nav{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:rgba(12,16,22,.9);
-      backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
-  nav .wrap{display:flex;align-items:center;gap:22px;height:58px}
-  .brand{font-weight:900;font-size:17px;letter-spacing:-.02em;margin-right:auto}
-  .brand span{color:var(--hot)}
-  nav a{color:var(--dim);text-decoration:none;font-size:14px;font-weight:600}
+  /* Section headings borrow the diff hunk header. It is the one structural device
+     this subject actually owns, so it is information rather than ornament. */
+  .hunk{font-family:var(--mono);font-size:13px;color:var(--faint);margin:0 0 6px;
+        display:flex;align-items:center;gap:12px;white-space:nowrap;overflow:hidden}
+  .hunk::after{content:"";flex:1;height:1px;background:var(--rule)}
+  .hunk b{color:var(--meta);font-weight:500}
+  h2{font-family:var(--mono);font-size:clamp(21px,3vw,27px);font-weight:600;
+     letter-spacing:-.01em;margin:0 0 16px}
+  h3{font-family:var(--mono);font-size:15px;font-weight:600;margin:0 0 7px}
+  section{padding-block:clamp(44px,6vw,72px)}
+  .lede{color:var(--dim);margin:0 0 28px}
+
+  /* ---- top bar ---- */
+  nav{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:rgba(13,17,23,.92);
+      backdrop-filter:blur(8px);border-bottom:1px solid var(--rule);font-family:var(--mono);font-size:13px}
+  nav .wrap{display:flex;align-items:center;gap:20px;height:50px}
+  .brand{font-weight:600;margin-right:auto;letter-spacing:-.01em}
+  .brand i{color:var(--add);font-style:normal}
+  nav a{color:var(--dim);text-decoration:none}
   nav a:hover{color:var(--ink)}
-  @media(max-width:720px){nav .nlink{display:none}}
+  @media(max-width:700px){nav .nl{display:none}}
 
   /* ---- hero ---- */
-  header{padding-block:clamp(56px,10vw,110px) clamp(40px,7vw,72px)}
-  .tag{display:inline-flex;align-items:center;gap:8px;font-family:var(--mono);font-size:12px;
-       color:var(--cool);border:1px solid color-mix(in srgb,var(--cool) 40%,var(--line));
-       border-radius:999px;padding:5px 13px;margin-bottom:22px}
-  .dot{width:6px;height:6px;border-radius:50%;background:var(--cool)}
-  h1{font-size:clamp(36px,7vw,68px);font-weight:900;line-height:1.03}
-  h1 em{font-style:normal;color:var(--hot)}
-  .sub{color:var(--dim);font-size:clamp(17px,2.3vw,21px);max-width:58ch;margin:20px 0 34px}
-  .cta{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:38px}
-  .btn{display:inline-flex;align-items:center;gap:8px;font-weight:600;font-size:15px;
-       text-decoration:none;padding:11px 20px;border-radius:9px;border:1px solid var(--line);
-       background:var(--panel);color:var(--ink)}
-  .btn:hover{border-color:var(--faint)}
-  .btn.primary{background:var(--hot);border-color:var(--hot);color:#12161b}
-  .btn.primary:hover{filter:brightness(1.08)}
+  header{padding-block:clamp(40px,7vw,76px) clamp(28px,4vw,44px)}
+  h1{font-family:var(--mono);font-size:clamp(27px,5.2vw,46px);font-weight:600;line-height:1.14;
+     letter-spacing:-.025em;margin:0 0 18px;max-width:19ch}
+  h1 i{font-style:normal;color:var(--add)}
+  .sub{color:var(--dim);font-size:clamp(16px,2vw,18px);max-width:56ch;margin:0 0 26px}
+  .links{font-family:var(--mono);font-size:13.5px;display:flex;flex-wrap:wrap;gap:6px 20px;margin-bottom:30px}
+  .links a{text-decoration:none;color:var(--key)}
+  .links a:hover{text-decoration:underline}
+  .links span{color:var(--faint)}
 
-  /* ---- code ---- */
-  .code{position:relative;background:#090d12;border:1px solid var(--line);border-radius:10px;
-        font-family:var(--mono);font-size:13.5px;overflow:hidden}
-  .code pre{margin:0;padding:16px 56px 16px 18px;overflow-x:auto;line-height:1.7}
-  .code .p{color:var(--faint)}
-  .code .c{color:var(--faint);font-style:italic}
-  .copy{position:absolute;top:9px;right:9px;border:1px solid var(--line);background:var(--panel-2);
-        color:var(--dim);font-family:var(--ui);font-size:11px;font-weight:600;padding:5px 10px;
-        border-radius:6px;cursor:pointer}
-  .copy:hover{color:var(--ink);border-color:var(--faint)}
-  .copy.done{color:var(--cool);border-color:var(--cool)}
+  /* ---- terminal ---- */
+  .term{background:var(--surface);border:1px solid var(--rule);border-radius:6px;overflow:hidden;
+        font-family:var(--mono);font-size:13px;line-height:1.75}
+  .term .bar{display:flex;align-items:center;gap:7px;padding:8px 12px;border-bottom:1px solid var(--rule);
+             color:var(--faint);font-size:11.5px}
+  .term .bar i{width:9px;height:9px;border-radius:50%;background:#2d3540;display:inline-block}
+  .term .body{padding:14px 16px;overflow-x:auto;position:relative}
+  .term pre{margin:0;white-space:pre}
+  .p{color:var(--faint)} .g{color:var(--add)} .r{color:var(--del)}
+  .m{color:var(--meta)} .k{color:var(--key)} .w{color:var(--warn)} .d{color:var(--dim)}
+  .copy{position:absolute;top:8px;right:8px;font-family:var(--sans);font-size:11px;color:var(--faint);
+        background:var(--bg);border:1px solid var(--rule);border-radius:4px;padding:3px 9px;cursor:pointer}
+  .copy:hover{color:var(--ink)} .copy.ok{color:var(--add);border-color:var(--add)}
 
-  /* ---- compare ---- */
-  .compare{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:8px}
-  @media(max-width:760px){.compare{grid-template-columns:1fr}}
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px}
-  .card.off{border-color:color-mix(in srgb,var(--hot) 35%,var(--line))}
-  .card.on{border-color:color-mix(in srgb,var(--cool) 40%,var(--line))}
-  .card h3{font-family:var(--mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase;margin-bottom:12px}
-  .card.off h3{color:var(--hot)} .card.on h3{color:var(--cool)}
-  .card p{margin:0;font-family:var(--mono);font-size:13.5px;line-height:1.65;color:var(--ink)}
-  .card .meta{display:block;margin-top:12px;color:var(--faint);font-size:12px;font-family:var(--ui)}
+  /* ---- the two reviews, as review comments rather than cards ---- */
+  .review{border-left:2px solid var(--rule);padding:2px 0 2px 18px;margin-bottom:26px}
+  .review.a{border-left-color:var(--del)} .review.b{border-left-color:var(--add)}
+  .review .sev{font-family:var(--mono);font-size:12px;letter-spacing:.06em;margin-bottom:8px}
+  .review.a .sev{color:var(--del)} .review.b .sev{color:var(--add)}
+  .review q{display:block;font-family:var(--mono);font-size:13.5px;line-height:1.7;quotes:none;color:var(--ink)}
+  .review .prec{display:block;margin-top:9px;font-family:var(--mono);font-size:12.5px;color:var(--meta)}
+  .review .say{display:block;margin-top:10px;color:var(--faint);font-size:13.5px;font-family:var(--sans)}
+  @media(min-width:860px){.pair{display:grid;grid-template-columns:1fr 1fr;gap:30px}}
+
+  /* ---- numbered list that reads like a pipeline ---- */
+  ol.flow{list-style:none;counter-reset:f;padding:0;margin:0 0 8px}
+  ol.flow li{counter-increment:f;position:relative;padding:0 0 18px 30px;border-left:1px solid var(--rule);
+             margin-left:7px}
+  ol.flow li:last-child{border-left-color:transparent;padding-bottom:0}
+  ol.flow li::before{content:counter(f);position:absolute;left:-8px;top:0;width:16px;height:16px;
+      background:var(--bg);border:1px solid var(--rule);border-radius:50%;color:var(--meta);
+      font-family:var(--mono);font-size:10px;display:grid;place-content:center}
+  ol.flow b{font-family:var(--mono);font-weight:600;font-size:14px;display:block;margin-bottom:2px}
+  ol.flow span{color:var(--dim);font-size:15px}
 
   /* ---- tabs ---- */
-  .tabs{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:18px}
-  .tabs button{font-family:var(--ui);font-size:13.5px;font-weight:600;color:var(--dim);
-               background:var(--panel);border:1px solid var(--line);border-radius:8px;
-               padding:8px 14px;cursor:pointer}
+  .tabs{display:flex;flex-wrap:wrap;gap:0;border-bottom:1px solid var(--rule);margin-bottom:22px}
+  .tabs button{font-family:var(--mono);font-size:13px;color:var(--dim);background:none;border:0;
+               border-bottom:2px solid transparent;padding:9px 14px 8px;cursor:pointer;margin-bottom:-1px}
   .tabs button:hover{color:var(--ink)}
-  .tabs button[aria-selected="true"]{background:var(--hot);border-color:var(--hot);color:#12161b}
-  .panel h4{margin:22px 0 8px;font-size:15px;font-weight:600}
-  .panel h4:first-child{margin-top:0}
-  .panel p{color:var(--dim);font-size:14.5px;margin:0 0 12px;max-width:66ch}
-  .panel .code{margin-bottom:14px}
-  .note{border-left:2px solid var(--warn);padding-left:14px;color:var(--dim);font-size:14px;margin:16px 0}
+  .tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--add)}
+  .step{margin-bottom:20px}
+  .step h3{color:var(--dim);font-weight:500;font-size:13px}
+  .step h3 em{font-style:normal;color:var(--meta)}
+  .step p{color:var(--dim);font-size:15px;margin:0 0 10px}
+  .step .term{margin-top:8px}
+  .warnbox{font-family:var(--mono);font-size:12.5px;color:var(--dim);border-left:2px solid var(--warn);
+           padding-left:14px;margin:18px 0}
 
-  /* ---- steps ---- */
-  ol.steps{counter-reset:s;list-style:none;padding:0;margin:0;display:grid;gap:14px}
-  ol.steps li{counter-increment:s;position:relative;padding-left:44px;color:var(--dim);font-size:15px}
-  ol.steps li::before{content:counter(s);position:absolute;left:0;top:-1px;width:28px;height:28px;
-      display:grid;place-content:center;border-radius:50%;background:var(--panel-2);
-      border:1px solid var(--line);color:var(--hot);font-family:var(--mono);font-size:13px;font-weight:700}
-  ol.steps strong{color:var(--ink);font-weight:600}
+  /* ---- plain data, no tiles ---- */
+  table{width:100%;border-collapse:collapse;font-size:14.5px;font-family:var(--mono)}
+  th,td{text-align:left;padding:9px 14px 9px 0;border-bottom:1px solid var(--rule);vertical-align:top}
+  th{color:var(--faint);font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;font-weight:500}
+  td.n{font-variant-numeric:tabular-nums;color:var(--ink);white-space:nowrap}
+  td small{display:block;color:var(--faint);font-size:11.5px;font-family:var(--sans);margin-top:3px}
+  .scroll{overflow-x:auto;margin-bottom:10px}
+  .src{color:var(--faint);font-size:12.5px;font-family:var(--sans)}
 
-  /* ---- stats ---- */
-  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin:4px 0 28px}
-  .stat{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px}
-  .stat b{display:block;font-size:clamp(26px,3.6vw,34px);font-weight:900;letter-spacing:-.03em;
-          font-variant-numeric:tabular-nums;margin-bottom:5px}
-  .stat span{color:var(--dim);font-size:13.5px;line-height:1.45;display:block}
-  .stat cite{display:block;margin-top:9px;color:var(--faint);font-size:11.5px;font-style:normal}
+  /* ---- findings list: the page describes itself as a review ---- */
+  .finding{padding:16px 0;border-bottom:1px solid var(--rule)}
+  .finding:last-child{border-bottom:0}
+  .finding .tag{font-family:var(--mono);font-size:11.5px;color:var(--faint);letter-spacing:.07em}
+  .finding h3{margin:5px 0 5px}
+  .finding p{color:var(--dim);font-size:15px;margin:0}
+  @media(min-width:760px){.two{display:grid;grid-template-columns:1fr 1fr;gap:0 44px}}
 
-  table{width:100%;border-collapse:collapse;font-size:14.5px}
-  th,td{text-align:left;padding:11px 12px;border-bottom:1px solid var(--line);vertical-align:top}
-  th{color:var(--faint);font-size:12px;letter-spacing:.09em;text-transform:uppercase;font-weight:600}
-  td code{font-family:var(--mono);font-size:13px;color:var(--warn)}
-  .scroll{overflow-x:auto}
+  .who{font-family:var(--mono);font-size:14px;padding:14px 0;border-bottom:1px solid var(--rule)}
+  .who:last-of-type{border-bottom:0}
+  .who b{font-weight:600;font-size:16px;display:inline-block;min-width:170px}
+  .who em{font-style:normal;color:var(--faint);font-size:12.5px;display:block;margin:2px 0 7px}
+  .who a{margin-right:16px;text-decoration:none;font-size:13px}
+  .who a:hover{text-decoration:underline}
 
-  .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
-  .lesson{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px}
-  .lesson h3{font-size:16px;font-weight:600;margin-bottom:8px}
-  .lesson p{margin:0;color:var(--dim);font-size:14.5px}
-
-  /* ---- team ---- */
-  .team{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}
-  .person{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:22px}
-  .person h3{font-size:19px;font-weight:900;margin-bottom:3px}
-  .person .role{color:var(--hot);font-family:var(--mono);font-size:11.5px;letter-spacing:.1em;
-                text-transform:uppercase;margin-bottom:14px}
-  .person a{display:inline-block;margin:0 14px 6px 0;font-size:14px;text-decoration:none;font-weight:600}
-  .person a:hover{text-decoration:underline}
-
-  footer{border-top:1px solid var(--line);padding-block:40px;color:var(--faint);font-size:13.5px}
-  footer a{color:var(--dim)}
+  footer{border-top:1px solid var(--rule);padding-block:30px 44px;color:var(--faint);
+         font-family:var(--mono);font-size:12.5px}
+  footer a{color:var(--dim);text-decoration:none} footer a:hover{color:var(--ink)}
   @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
 </style>
 </head>
 <body>
 
 <nav><div class="wrap">
-  <div class="brand">Memo<span>Lint</span></div>
-  <a class="nlink" href="#start">Get started</a>
-  <a class="nlink" href="#what">What it is</a>
-  <a class="nlink" href="#research">Research</a>
-  <a class="nlink" href="#learned">What we learned</a>
-  <a class="nlink" href="#team">Team</a>
+  <span class="brand">memolint<i>_</i></span>
+  <a class="nl" href="#install">install</a>
+  <a class="nl" href="#how">how</a>
+  <a class="nl" href="#why">why</a>
+  <a class="nl" href="#learned">notes</a>
+  <a href="https://github.com/WaifuPuller/MemoLint">github</a>
 </div></nav>
 
 <header class="wrap">
-  <div class="tag"><i class="dot"></i> Built on Hindsight agent memory</div>
-  <h1>A code reviewer that <em>remembers</em> your team.</h1>
+  <h1>A code reviewer that <i>remembers</i> your team.</h1>
   <p class="sub">Every AI reviewer starts from zero on every pull request. It repeats the
-    suggestion you rejected last month and has never heard of the bug that took production
-    down. MemoLint remembers both.</p>
-
-  <div class="cta">
-    <a class="btn primary" href="#start">Get started</a>
-    <a class="btn" href="https://github.com/WaifuPuller/MemoLint">GitHub</a>
-    <a class="btn" href="https://youtu.be/jWx0-Nl4BRk">Watch the demo</a>
+    suggestion you rejected last month, and it has never heard of the bug that took
+    production down. This one remembers both.</p>
+  <div class="links">
+    <a href="#install">install →</a>
+    <a href="https://github.com/WaifuPuller/MemoLint">source</a>
+    <a href="https://youtu.be/jWx0-Nl4BRk">demo video</a>
+    <span>MIT · built on Hindsight</span>
   </div>
 
-  <div class="code">
-    <button class="copy" data-copy="pip install git+https://github.com/WaifuPuller/MemoLint">Copy</button>
-    <pre><span class="p">$</span> pip install git+https://github.com/WaifuPuller/MemoLint</pre>
+  <div class="term">
+    <div class="bar"><i></i><i></i><i></i><span>memolint review --git main..HEAD</span></div>
+    <div class="body">
+      <button class="copy" data-copy="pip install git+https://github.com/WaifuPuller/MemoLint">copy install</button>
+<pre><span class="d">Add refund summary endpoint</span>  <span class="p">(orderflow#3)</span>
+<span class="g">memory on</span> <span class="p">|</span> 23 memories recalled <span class="p">|</span> 2,206 in / 313 out tokens
+
+<span class="r">F1  HIGH</span>   <span class="d">N+1 external API calls in loop</span>  <span class="k">orderflow/api/refunds.py:26</span>
+     The loop calls <span class="k">_provider_status(refund)</span> for every refund. This is the
+     exact shape of the bug that caused the <span class="w">41-minute checkout outage</span>.
+     <span class="m">precedent:</span> one call per item inside a loop exhausted the connection pool.
+
+<span class="p">Deliberately not raised (learned from you)</span>
+     <span class="d">Add type hints to the private helpers</span>
+     <span class="p">└─ team convention: private helpers do not require type hints</span></pre>
+    </div>
   </div>
 </header>
 
 <section class="wrap" id="proof">
-  <p class="eyebrow">The whole idea</p>
-  <h2>Same model. Same diff. One has been here before.</h2>
-  <p class="lede">Both reviews below came from one run against a live memory bank. The only
-    difference is whether the reviewer could recall what this team had already decided.</p>
-  <div class="compare">
-    <div class="card off">
-      <h3>Memory off</h3>
-      <p>The loop calls <code>_provider_status(refund)</code> for each refund, which makes a
-        network request per item. Consider batching the status requests.</p>
-      <span class="meta">Correct. Forgettable. Any tool says this.</span>
+  <p class="hunk">@@ <b>the whole idea</b> @@</p>
+  <h2>Same model. Same diff.</h2>
+  <p class="lede">Both of these came out of one run against a live memory bank. The only
+    variable is whether the reviewer could recall what this team had already decided.</p>
+
+  <div class="pair">
+    <div class="review a">
+      <div class="sev">── memory off</div>
+      <q>The loop calls <span class="k">_provider_status(refund)</span> for each refund, which
+        makes a network request per item. Consider batching the status requests.</q>
+      <span class="say">Correct. Forgettable. Any tool says this.</span>
     </div>
-    <div class="card on">
-      <h3>Memory on</h3>
-      <p>This is the exact shape of the bug that caused the 41-minute checkout outage. You
-        must batch these requests or parallelize them to avoid exhausting the connection pool.</p>
-      <span class="meta">It matched an N+1 database query to a per-item API call. Nobody told it those were the same bug.</span>
+    <div class="review b">
+      <div class="sev">── memory on</div>
+      <q>This is the exact shape of the bug that caused the 41-minute checkout outage. You
+        must batch these requests or parallelize them to avoid exhausting the connection pool.</q>
+      <span class="prec">precedent: one call per item inside a loop exhausted the Postgres pool.</span>
+      <span class="say">It matched an N+1 database query to a per-item API call. Nobody told it
+        those were the same bug.</span>
     </div>
   </div>
 </section>
 
-<section class="wrap" id="start">
-  <p class="eyebrow">Get started</p>
-  <h2>Pick how you want to run it</h2>
-  <p class="lede">Everything below works on free tiers. The only required account is Hindsight,
-    which stores the memory. Choose the path that matches your setup.</p>
+<section class="wrap" id="install">
+  <p class="hunk">@@ <b>install</b> @@</p>
+  <h2>Pick how you run it</h2>
+  <p class="lede">Everything works on free tiers. The only account you need is Hindsight,
+    which holds the memory. One of these four will match your setup.</p>
 
   <div class="tabs" role="tablist">
-    <button role="tab" aria-selected="true" data-tab="cli">Command line</button>
-    <button role="tab" aria-selected="false" data-tab="claude">Claude Code</button>
-    <button role="tab" aria-selected="false" data-tab="codex">Codex / Cursor / Antigravity</button>
-    <button role="tab" aria-selected="false" data-tab="local">Fully local, no API keys</button>
+    <button role="tab" aria-selected="true" data-tab="cli">command line</button>
+    <button role="tab" aria-selected="false" data-tab="claude">claude code</button>
+    <button role="tab" aria-selected="false" data-tab="mcp">codex · cursor · antigravity</button>
+    <button role="tab" aria-selected="false" data-tab="local">fully local</button>
   </div>
 
-  <div class="panel" id="p-cli">
-    <h4>1. Install</h4>
-    <div class="code"><button class="copy" data-copy="pip install git+https://github.com/WaifuPuller/MemoLint">Copy</button>
-      <pre><span class="p">$</span> pip install git+https://github.com/WaifuPuller/MemoLint</pre></div>
-    <h4>2. Get two free keys</h4>
-    <p>A Hindsight key from <a href="https://ui.hindsight.vectorize.io">ui.hindsight.vectorize.io</a>
-      for the memory, and a Groq key from <a href="https://console.groq.com/keys">console.groq.com/keys</a>
-      to write the reviews. Neither needs a card.</p>
-    <div class="code"><button class="copy" data-copy="HINDSIGHT_API_KEY=hsk_...
-GROQ_API_KEY=gsk_...">Copy</button>
-      <pre><span class="c"># .env in your project</span>
+  <div id="p-cli">
+    <div class="step"><h3><em>1</em> install</h3>
+      <div class="term"><div class="body"><button class="copy" data-copy="pip install git+https://github.com/WaifuPuller/MemoLint">copy</button>
+<pre><span class="p">$</span> pip install git+https://github.com/WaifuPuller/MemoLint</pre></div></div></div>
+    <div class="step"><h3><em>2</em> two free keys</h3>
+      <p>Hindsight from <a href="https://ui.hindsight.vectorize.io">ui.hindsight.vectorize.io</a>
+        holds the memory. Groq from <a href="https://console.groq.com/keys">console.groq.com/keys</a>
+        writes the reviews. Neither needs a card.</p>
+      <div class="term"><div class="body"><button class="copy" data-copy="HINDSIGHT_API_KEY=hsk_...
+GROQ_API_KEY=gsk_...">copy</button>
+<pre><span class="p"># .env</span>
 HINDSIGHT_API_KEY=hsk_...
-GROQ_API_KEY=gsk_...</pre></div>
-    <h4>3. Review something</h4>
-    <div class="code"><button class="copy" data-copy="memolint review --git main..HEAD">Copy</button>
-      <pre><span class="p">$</span> memolint review --git main..HEAD
-<span class="p">$</span> memolint review --pr owner/repo#42 --post</pre></div>
-    <h4>4. Teach it</h4>
-    <p>This is the part that matters. Rejections carry more signal than anything else it stores.</p>
-    <div class="code"><button class="copy" data-copy='memolint feedback F2 --reject --note "we do not type-hint private helpers"'>Copy</button>
-      <pre><span class="p">$</span> memolint feedback F2 --reject --note <span style="color:var(--cool)">"we do not type-hint private helpers"</span>
-<span class="p">$</span> memolint teach <span style="color:var(--cool)">"prefer guard clauses over nested ifs"</span>
-<span class="p">$</span> memolint incident <span style="color:var(--cool)">"N+1 in checkout caused the Sept 3 outage"</span></pre></div>
+GROQ_API_KEY=gsk_...</pre></div></div></div>
+    <div class="step"><h3><em>3</em> review something</h3>
+      <div class="term"><div class="body"><button class="copy" data-copy="memolint review --git main..HEAD">copy</button>
+<pre><span class="p">$</span> memolint review --git main..HEAD
+<span class="p">$</span> memolint review --pr owner/repo#42 --post</pre></div></div></div>
+    <div class="step"><h3><em>4</em> teach it — this is the part that matters</h3>
+      <p>A rejection carries more signal than anything else it stores, because it encodes a
+        judgment that exists nowhere in your code.</p>
+      <div class="term"><div class="body"><button class="copy" data-copy='memolint feedback F2 --reject --note "we do not type-hint private helpers"'>copy</button>
+<pre><span class="p">$</span> memolint feedback F2 <span class="r">--reject</span> --note <span class="g">"we do not type-hint private helpers"</span>
+<span class="p">$</span> memolint teach <span class="g">"prefer guard clauses over nested ifs"</span>
+<span class="p">$</span> memolint incident <span class="g">"N+1 in checkout caused the Sept 3 outage"</span></pre></div></div></div>
   </div>
 
-  <div class="panel" id="p-claude" hidden>
-    <h4>One line</h4>
-    <p>MemoLint ships an MCP server, so the agent that writes your code can consult the same
-      memory before it writes. Nothing is installed permanently.</p>
-    <div class="code"><button class="copy" data-copy="claude mcp add memolint -- uvx --from git+https://github.com/WaifuPuller/MemoLint memolint-mcp">Copy</button>
-      <pre><span class="p">$</span> claude mcp add memolint -- uvx --from git+https://github.com/WaifuPuller/MemoLint memolint-mcp</pre></div>
-    <h4>Then add your Hindsight key</h4>
-    <div class="code"><button class="copy" data-copy="HINDSIGHT_API_KEY=hsk_...">Copy</button>
-      <pre><span class="c"># .env in your project</span>
-HINDSIGHT_API_KEY=hsk_...</pre></div>
-    <h4>What changes</h4>
-    <p>The agent is told to call <code>recall_team_memory</code> before writing code, so it
-      follows your conventions the first time instead of being corrected afterwards. It can
-      also store a rule when you state one, record an incident, and run a full review.</p>
-    <div class="note">Nothing is hosted. The client launches the server as a local process and
-      talks to it over pipes. The only remote piece is the memory bank.</div>
+  <div id="p-claude" hidden>
+    <div class="step"><h3><em>1</em> one line, nothing installed permanently</h3>
+      <div class="term"><div class="body"><button class="copy" data-copy="claude mcp add memolint -- uvx --from git+https://github.com/WaifuPuller/MemoLint memolint-mcp">copy</button>
+<pre><span class="p">$</span> claude mcp add memolint -- uvx \
+    --from git+https://github.com/WaifuPuller/MemoLint memolint-mcp</pre></div></div></div>
+    <div class="step"><h3><em>2</em> add the memory key</h3>
+      <div class="term"><div class="body"><button class="copy" data-copy="HINDSIGHT_API_KEY=hsk_...">copy</button>
+<pre><span class="p"># .env</span>
+HINDSIGHT_API_KEY=hsk_...</pre></div></div></div>
+    <div class="step"><h3><em>3</em> what changes</h3>
+      <p>The agent is told to call <span style="font-family:var(--mono);color:var(--key)">recall_team_memory</span>
+        before it writes code, so it follows your conventions the first time instead of being
+        corrected afterwards. It can also store a rule when you state one, record an incident,
+        and run a full review.</p></div>
+    <div class="warnbox">Nothing is hosted. The client launches the server as a local process
+      and talks over pipes. The only remote piece is the memory bank.</div>
   </div>
 
-  <div class="panel" id="p-codex" hidden>
-    <h4>Install the server</h4>
-    <div class="code"><button class="copy" data-copy="pip install git+https://github.com/WaifuPuller/MemoLint">Copy</button>
-      <pre><span class="p">$</span> pip install git+https://github.com/WaifuPuller/MemoLint</pre></div>
-    <h4>Codex</h4>
-    <p>Add to <code>~/.codex/config.toml</code>:</p>
-    <div class="code"><button class="copy" data-copy='[mcp_servers.memolint]
-command = "memolint-mcp"'>Copy</button>
-      <pre>[mcp_servers.memolint]
-command = <span style="color:var(--cool)">"memolint-mcp"</span></pre></div>
-    <h4>Cursor, Windsurf, Antigravity and others</h4>
-    <p>Same shape, in each client's own MCP config file:</p>
-    <div class="code"><button class="copy" data-copy='{
-  "mcpServers": {
-    "memolint": { "command": "memolint-mcp" }
-  }
-}'>Copy</button>
-      <pre>{
-  <span style="color:var(--cool)">"mcpServers"</span>: {
-    <span style="color:var(--cool)">"memolint"</span>: { <span style="color:var(--cool)">"command"</span>: <span style="color:var(--cool)">"memolint-mcp"</span> }
-  }
-}</pre></div>
-    <div class="note">MCP is a standard, so one server works with every client that speaks it.
-      Check your client's docs for where its config file lives.</div>
+  <div id="p-mcp" hidden>
+    <div class="step"><h3><em>1</em> install the server</h3>
+      <div class="term"><div class="body"><button class="copy" data-copy="pip install git+https://github.com/WaifuPuller/MemoLint">copy</button>
+<pre><span class="p">$</span> pip install git+https://github.com/WaifuPuller/MemoLint</pre></div></div></div>
+    <div class="step"><h3><em>2</em> codex — ~/.codex/config.toml</h3>
+      <div class="term"><div class="body"><button class="copy" data-copy='[mcp_servers.memolint]
+command = "memolint-mcp"'>copy</button>
+<pre>[mcp_servers.memolint]
+command = <span class="g">"memolint-mcp"</span></pre></div></div></div>
+    <div class="step"><h3><em>3</em> cursor · windsurf · antigravity</h3>
+      <p>Same shape, in each client's own MCP config file.</p>
+      <div class="term"><div class="body"><button class="copy" data-copy='{ "mcpServers": { "memolint": { "command": "memolint-mcp" } } }'>copy</button>
+<pre>{ <span class="g">"mcpServers"</span>: { <span class="g">"memolint"</span>: { <span class="g">"command"</span>: <span class="g">"memolint-mcp"</span> } } }</pre></div></div></div>
+    <div class="warnbox">MCP is a standard, so one server works with every client that speaks
+      it. Check your client's docs for where its config file lives.</div>
   </div>
 
-  <div class="panel" id="p-local" hidden>
-    <h4>No API keys, nothing leaves your machine</h4>
-    <p>Run both halves locally: Ollama for the model, and Hindsight in Docker for the memory.
-      Useful for regulated codebases, or anywhere source cannot go to a third party.</p>
-    <h4>1. The memory, self-hosted</h4>
-    <div class="code"><button class="copy" data-copy="docker run -it --pull always --name hindsight --shm-size=1g -p 8888:8888 -p 9999:9999 -e HINDSIGHT_API_EMBEDDINGS_PROVIDER=local -v hindsight-data:/home/hindsight/.pg0 ghcr.io/vectorize-io/hindsight:latest">Copy</button>
-      <pre><span class="p">$</span> docker run -it --pull always --name hindsight \
+  <div id="p-local" hidden>
+    <p class="lede">No API keys, and no source leaves the machine. Ollama runs the model,
+      Hindsight runs in Docker. For regulated codebases, or anywhere code cannot go out.</p>
+    <div class="step"><h3><em>1</em> memory, self-hosted</h3>
+      <div class="term"><div class="body"><button class="copy" data-copy="docker run -it --pull always --name hindsight --shm-size=1g -p 8888:8888 -p 9999:9999 -e HINDSIGHT_API_EMBEDDINGS_PROVIDER=local -v hindsight-data:/home/hindsight/.pg0 ghcr.io/vectorize-io/hindsight:latest">copy</button>
+<pre><span class="p">$</span> docker run -it --pull always --name hindsight \
     --shm-size=1g -p 8888:8888 -p 9999:9999 \
     -e HINDSIGHT_API_EMBEDDINGS_PROVIDER=local \
     -v hindsight-data:/home/hindsight/.pg0 \
-    ghcr.io/vectorize-io/hindsight:latest</pre></div>
-    <h4>2. The model, local</h4>
-    <div class="code"><button class="copy" data-copy="ollama pull qwen2.5-coder:7b">Copy</button>
-      <pre><span class="p">$</span> ollama pull qwen2.5-coder:7b</pre></div>
-    <h4>3. Point MemoLint at both</h4>
-    <div class="code"><button class="copy" data-copy="HINDSIGHT_BASE_URL=http://localhost:8888
-LLM_PROVIDER=ollama">Copy</button>
-      <pre><span class="c"># .env</span>
+    ghcr.io/vectorize-io/hindsight:latest</pre></div></div></div>
+    <div class="step"><h3><em>2</em> model, local</h3>
+      <div class="term"><div class="body"><button class="copy" data-copy="ollama pull qwen2.5-coder:7b">copy</button>
+<pre><span class="p">$</span> ollama pull qwen2.5-coder:7b</pre></div></div></div>
+    <div class="step"><h3><em>3</em> point at both</h3>
+      <div class="term"><div class="body"><button class="copy" data-copy="HINDSIGHT_BASE_URL=http://localhost:8888
+LLM_PROVIDER=ollama">copy</button>
+<pre><span class="p"># .env</span>
 HINDSIGHT_BASE_URL=http://localhost:8888
-LLM_PROVIDER=ollama</pre></div>
-    <div class="note">Hindsight needs a model with structured output support for its own fact
-      extraction. A local model covers it, at the cost of some extraction quality.</div>
+LLM_PROVIDER=ollama</pre></div></div></div>
+    <div class="warnbox">Hindsight needs a model with structured output for its own fact
+      extraction. A local model covers it, at some cost to extraction quality.</div>
   </div>
 </section>
 
-<section class="wrap" id="what">
-  <p class="eyebrow">What it is</p>
-  <h2>The model is stateless. The memory bank is not.</h2>
-  <p class="lede">MemoLint reviews a diff, a branch, or a pull request. That part is
-    unremarkable. What matters is what happens either side of the model call.</p>
+<section class="wrap" id="how">
+  <p class="hunk">@@ <b>how it works</b> @@</p>
+  <h2>The model is stateless. The bank is not.</h2>
+  <p class="lede">The review itself is unremarkable. What matters happens either side of the
+    model call.</p>
 
-  <ol class="steps">
-    <li><strong>Recall.</strong> Before reviewing, it queries a memory bank for what this team
-      has decided that bears on this change, budgeted to about 1,000 tokens.</li>
-    <li><strong>Review.</strong> Those memories go into the prompt under headings the model is
-      told to treat as binding rules, not as background context.</li>
-    <li><strong>Retain.</strong> Afterwards, and once a human responds, it writes back what
-      happened. The bank grows with every pull request.</li>
+  <ol class="flow">
+    <li><b>recall</b><span>Before reviewing, query the bank for what this team has decided that
+      bears on this change. Budgeted to about 1,000 tokens, so prompt size does not grow as the
+      bank does.</span></li>
+    <li><b>review</b><span>Those memories enter the prompt under headings the model is told to
+      treat as binding rules, not as background reading.</span></li>
+    <li><b>retain</b><span>Afterwards, and again once a human responds, write back what
+      happened. The bank grows with every pull request.</span></li>
   </ol>
 
-  <h3 style="margin:36px 0 12px;font-size:19px">Four kinds of memory</h3>
+  <h3 style="margin:34px 0 4px;color:var(--dim);font-weight:500">four kinds of memory</h3>
   <div class="scroll"><table>
-    <tr><th>Kind</th><th>What it is</th><th>Why it matters</th></tr>
-    <tr><td><code>feedback</code></td><td>How a reviewer responded to a specific finding, and why</td>
-        <td>Rejections encode a judgment you cannot read off the codebase. The highest-value thing it stores.</td></tr>
-    <tr><td><code>convention</code></td><td>A team rule, also stored as a Hindsight directive</td>
-        <td>Rules apply to every review. Similarity search is the wrong retrieval for a standing rule.</td></tr>
-    <tr><td><code>incident</code></td><td>A bug or outage tied to a code pattern</td>
-        <td>Turns a post-mortem from a wiki page nobody reads into something that flags the next pull request.</td></tr>
-    <tr><td><code>review</code></td><td>A summary of each review posted</td>
+    <tr><th>kind</th><th>what it is</th><th>why it earns its place</th></tr>
+    <tr><td class="n" style="color:var(--add)">feedback</td><td>How a reviewer answered a specific finding, and why</td>
+        <td>A rejection encodes a judgment you cannot read off the codebase. The most valuable thing here.</td></tr>
+    <tr><td class="n" style="color:var(--key)">convention</td><td>A team rule, also stored as a Hindsight directive</td>
+        <td>Rules must apply to every review. Similarity search is the wrong retrieval for a standing rule.</td></tr>
+    <tr><td class="n" style="color:var(--warn)">incident</td><td>A bug or outage tied to a code pattern</td>
+        <td>A post-mortem stops being a page nobody reads and starts flagging the next pull request.</td></tr>
+    <tr><td class="n" style="color:var(--meta)">review</td><td>A summary of each review posted</td>
         <td>It knows what it already said.</td></tr>
   </table></div>
-
-  <h3 style="margin:36px 0 12px;font-size:19px">It tells you what it chose not to say</h3>
-  <p style="color:var(--dim);max-width:66ch;margin-bottom:18px">Every review lists the
-    suggestions it suppressed and the rule behind each. Silence is invisible otherwise: you
-    cannot tell a reviewer that learned from one that got distracted.</p>
-  <div class="scroll"><table>
-    <tr><th>Would have said</th><th>Why not</th></tr>
-    <tr><td>Add type hints to the private helpers <code>_refunds_for</code> and <code>_provider_status</code></td>
-        <td>Team convention states that type hints are not required for private helper functions.</td></tr>
-  </table></div>
 </section>
 
-<section class="wrap" id="research">
-  <p class="eyebrow">Research</p>
-  <h2>Why this is worth building</h2>
-  <p class="lede">Code review is where engineering time goes, and the pressure on it is
-    increasing rather than easing.</p>
+<section class="wrap" id="why">
+  <p class="hunk">@@ <b>why bother</b> @@</p>
+  <h2>Review is where the time goes</h2>
+  <p class="lede">And the pressure on it is rising, not easing.</p>
 
-  <div class="stats">
-    <div class="stat"><b>36.5M</b><span>professional developers worldwide</span><cite>SlashData, 2025</cite></div>
-    <div class="stat"><b>3–5 hrs</b><span>spent on code review per developer, per week</span><cite>Academic survey; vendor surveys run higher</cite></div>
-    <div class="stat"><b>81%</b><span>say they now spend more time reviewing AI-generated code</span><cite>Harness survey of 700 developers (vendor-run)</cite></div>
-    <div class="stat"><b>$420M</b><span>2026 annual revenue across pure-play AI code review tools, up from ~$180M</span><cite>Category estimate; definitions vary widely</cite></div>
-  </div>
-
-  <h3 style="margin:10px 0 12px;font-size:19px">Where memory changes the outcome</h3>
-  <div class="grid2">
-    <div class="lesson"><h3>Institutional memory survives people</h3>
-      <p>The engineer who knew why you don't do X leaves. The rejection they recorded stays, and
-        keeps shaping reviews after they're gone.</p></div>
-    <div class="lesson"><h3>Post-mortems become prevention</h3>
-      <p>An incident stops being a document nobody reads and becomes a rule that flags the next
-        change repeating the pattern.</p></div>
-    <div class="lesson"><h3>Onboarding compresses</h3>
-      <p>A new joiner's first reviews already carry house style, because the bot learned it from
-        everyone who came before.</p></div>
-    <div class="lesson"><h3>Review fatigue reverses</h3>
-      <p>Teams disable review bots when noise beats signal. This one gets quieter and more
-        specific over time instead of louder.</p></div>
-  </div>
-
-  <h3 style="margin:36px 0 12px;font-size:19px">What it costs to run</h3>
   <div class="scroll"><table>
-    <tr><th>Memories recalled</th><th>Tokens in</th><th>Tokens out</th></tr>
-    <tr><td>0, cold bank</td><td>1,008</td><td>687</td></tr>
-    <tr><td>15</td><td>1,925</td><td>743</td></tr>
-    <tr><td>23</td><td>2,206</td><td>313</td></tr>
+    <tr><td class="n">36.5M</td><td>professional developers worldwide<small>SlashData, 2025. Other estimates run lower.</small></td></tr>
+    <tr><td class="n">3–5 hrs</td><td>per developer per week spent reviewing code<small>Academic survey median; vendor surveys run higher.</small></td></tr>
+    <tr><td class="n">81%</td><td>say they now spend more time reviewing AI-generated code<small>Harness survey of 700 developers. Vendor-run.</small></td></tr>
+    <tr><td class="n">$420M</td><td>2026 revenue across pure-play AI review tools, up from ~$180M<small>Category estimate. Definitions vary widely.</small></td></tr>
   </table></div>
-  <p style="color:var(--dim);margin-top:14px;max-width:66ch;font-size:14.5px">Recall is capped,
-    so prompt size does not grow with the bank. A review fits inside Groq's free tier of roughly
-    8,000 tokens a minute, and MemoLint paces itself against that budget rather than waiting to
-    be rate limited.</p>
-</section>
 
-<section class="wrap" id="experience">
-  <p class="eyebrow">Using it</p>
-  <h2>What it feels like after a week</h2>
-  <p class="lede">The behaviour changes in three stages, and you can watch it happen.</p>
-  <ol class="steps">
-    <li><strong>First review.</strong> Generic. Indistinguishable from any other tool, because
-      the bank is empty and it has nothing to go on.</li>
-    <li><strong>After the team answers.</strong> One suggestion accepted, one rejected, two
-      conventions stated. Three memories exist.</li>
-    <li><strong>Second review, different file.</strong> Every finding cites the rule behind it,
-      and the rejected suggestion is listed under what it deliberately did not raise.</li>
-    <li><strong>After an incident is recorded.</strong> A later change with the same shape of bug
-      gets flagged high severity, naming the outage and what it cost.</li>
-  </ol>
-  <p style="color:var(--dim);margin-top:24px;max-width:66ch">
-    Ask it directly what it has learned:</p>
-  <div class="code"><button class="copy" data-copy="memolint ask &quot;what does this team care about in reviews?&quot;">Copy</button>
-    <pre><span class="p">$</span> memolint ask <span style="color:var(--cool)">"what does this team care about in reviews?"</span></pre></div>
+  <h3 style="margin:30px 0 2px;color:var(--dim);font-weight:500">where memory changes the outcome</h3>
+  <div class="two">
+    <div class="finding"><div class="tag">RETENTION</div><h3>Knowledge survives people</h3>
+      <p>The engineer who knew why you don't do X leaves. The rejection they recorded stays and
+        keeps shaping reviews.</p></div>
+    <div class="finding"><div class="tag">PREVENTION</div><h3>Post-mortems do something</h3>
+      <p>An incident becomes a rule that flags the next change repeating the pattern, instead of
+        a document nobody opens again.</p></div>
+    <div class="finding"><div class="tag">ONBOARDING</div><h3>House style from day one</h3>
+      <p>A new joiner's first reviews already carry the team's conventions, learned from everyone
+        who came before them.</p></div>
+    <div class="finding"><div class="tag">SIGNAL</div><h3>It gets quieter, not louder</h3>
+      <p>Teams switch review bots off when noise beats signal. This one narrows over time as it
+        learns what you turned down.</p></div>
+  </div>
+
+  <h3 style="margin:30px 0 4px;color:var(--dim);font-weight:500">what a review costs</h3>
+  <div class="scroll"><table>
+    <tr><th>memories recalled</th><th>tokens in</th><th>tokens out</th></tr>
+    <tr><td class="n">0 · cold bank</td><td class="n">1,008</td><td class="n">687</td></tr>
+    <tr><td class="n">15</td><td class="n">1,925</td><td class="n">743</td></tr>
+    <tr><td class="n">23</td><td class="n">2,206</td><td class="n">313</td></tr>
+  </table></div>
+  <p class="src">Recall is capped, so the prompt does not grow with the bank. A review fits
+    inside Groq's free tier of roughly 8,000 tokens a minute, and MemoLint paces itself against
+    that budget rather than waiting to be rate limited.</p>
 </section>
 
 <section class="wrap" id="learned">
-  <p class="eyebrow">What we learned</p>
-  <h2>Things that surprised us building it</h2>
-  <p class="lede">Written up honestly, including the mistake that nearly made it into a
-    published result.</p>
-  <div class="grid2">
-    <div class="lesson"><h3>Our A/B test was measuring two models</h3>
-      <p>The memory-off half ran on one provider and the memory-on half fell back to another
-        after a rate limit. The comparison looked great and proved nothing. Both halves are now
-        pinned to one provider, and the run warns if they ever differ.</p></div>
-    <div class="lesson"><h3>Rejections beat acceptances</h3>
-      <p>An accepted suggestion tells you the reviewer was already right. A rejection encodes a
-        judgment that exists nowhere in the code.</p></div>
-    <div class="lesson"><h3>Rules and facts need different retrieval</h3>
-      <p>A team convention should apply whether or not the diff looks familiar. Putting rules in
-        directives instead of similarity search fixed a whole class of inconsistency.</p></div>
-    <div class="lesson"><h3>Tell the model how to match, not just what</h3>
-      <p>One paragraph instructing it to match incidents on the shape of a bug rather than its
-        wording changed behaviour more than any amount of extra context.</p></div>
-    <div class="lesson"><h3>A test that passes slowly is a bug report</h3>
-      <p>Our suite jumped to 68 seconds. A rate-limit test was busy-waiting a full minute,
+  <p class="hunk">@@ <b>notes from building it</b> @@</p>
+  <h2>Including the one we nearly published</h2>
+
+  <div class="two">
+    <div class="finding"><div class="tag">— WRONG</div><h3>Our A/B test compared two models</h3>
+      <p>Memory-off ran on one provider; memory-on fell back to another after a rate limit. The
+        result looked great and proved nothing. Both halves are now pinned to one provider, and
+        the run warns if they ever differ.</p></div>
+    <div class="finding"><div class="tag">+ LEARNED</div><h3>Rejections beat acceptances</h3>
+      <p>An accepted suggestion only tells you the reviewer was already right.</p></div>
+    <div class="finding"><div class="tag">+ LEARNED</div><h3>Rules and facts retrieve differently</h3>
+      <p>A convention should apply whether or not the diff looks familiar. Moving rules into
+        directives fixed a whole class of inconsistency.</p></div>
+    <div class="finding"><div class="tag">+ LEARNED</div><h3>Say how to match, not just what</h3>
+      <p>One paragraph telling the model to match incidents on the shape of a bug rather than its
+        wording changed behaviour more than any extra context.</p></div>
+    <div class="finding"><div class="tag">— WRONG</div><h3>A slow test is a bug report</h3>
+      <p>The suite jumped to 68 seconds. A rate-limit test was busy-waiting a full minute,
         because sleep was mocked inside a loop that needed the clock to move.</p></div>
-    <div class="lesson"><h3>Waiting on purpose beats being told to wait</h3>
-      <p>Pacing requests against a rolling token budget is cheaper than retry backoff, and
-        deterministic, which matters when anything downstream depends on timing.</p></div>
+    <div class="finding"><div class="tag">+ LEARNED</div><h3>Wait on purpose</h3>
+      <p>Pacing against a rolling token budget is cheaper than retry backoff, and deterministic,
+        which matters when anything downstream depends on timing.</p></div>
   </div>
-  <p style="margin-top:26px;color:var(--dim)">Both write-ups go into more detail:
-    <a href="https://dev.to/waifu_puller/hindsight-made-my-code-reviewer-stop-repeating-rejected-advice-5hmh">on memory design</a>
-    and <a href="https://dev.to/sasi_chandan_068c2e22e9b0/i-proved-hindsight-worked-then-found-my-test-was-broken-257b">on the broken comparison</a>.</p>
+  <p class="src" style="margin-top:22px">Longer write-ups:
+    <a href="https://dev.to/waifu_puller/hindsight-made-my-code-reviewer-stop-repeating-rejected-advice-5hmh">on memory design</a>,
+    <a href="https://dev.to/sasi_chandan_068c2e22e9b0/i-proved-hindsight-worked-then-found-my-test-was-broken-257b">on the broken comparison</a>.</p>
 </section>
 
 <section class="wrap" id="team">
-  <p class="eyebrow">Team</p>
-  <h2>Who built it</h2>
-  <div class="team">
-    <div class="person">
-      <h3>Aaditya Singh</h3>
-      <div class="role">Memory design</div>
-      <a href="https://github.com/WaifuPuller">GitHub</a>
-      <a href="https://www.linkedin.com/in/aaditya-singh-408968357">LinkedIn</a>
-      <a href="https://dev.to/waifu_puller/hindsight-made-my-code-reviewer-stop-repeating-rejected-advice-5hmh">Article</a>
-    </div>
-    <div class="person">
-      <h3>Sasi Chandan</h3>
-      <div class="role">Evaluation and runtime</div>
-      <a href="https://github.com/sasichandan23">GitHub</a>
-      <a href="https://www.linkedin.com/in/sasi-chandan-733054365">LinkedIn</a>
-      <a href="https://dev.to/sasi_chandan_068c2e22e9b0/i-proved-hindsight-worked-then-found-my-test-was-broken-257b">Article</a>
-    </div>
+  <p class="hunk">@@ <b>authors</b> @@</p>
+  <div class="who">
+    <b>Aaditya Singh</b><em>memory design</em>
+    <a href="https://github.com/WaifuPuller">github</a>
+    <a href="https://www.linkedin.com/in/aaditya-singh-408968357">linkedin</a>
+    <a href="https://dev.to/waifu_puller/hindsight-made-my-code-reviewer-stop-repeating-rejected-advice-5hmh">article</a>
+  </div>
+  <div class="who">
+    <b>Sasi Chandan</b><em>evaluation and runtime</em>
+    <a href="https://github.com/sasichandan23">github</a>
+    <a href="https://www.linkedin.com/in/sasi-chandan-733054365">linkedin</a>
+    <a href="https://dev.to/sasi_chandan_068c2e22e9b0/i-proved-hindsight-worked-then-found-my-test-was-broken-257b">article</a>
   </div>
 </section>
 
 <footer class="wrap">
-  <p style="margin:0 0 8px">MemoLint is MIT licensed. Built on
-    <a href="https://github.com/vectorize-io/hindsight">Hindsight</a>, the open source agent
-    memory system from Vectorize.</p>
-  <p style="margin:0">
-    <a href="https://github.com/WaifuPuller/MemoLint">Source</a> ·
-    <a href="https://youtu.be/jWx0-Nl4BRk">Demo video</a> ·
-    <a href="https://hindsight.vectorize.io/">Hindsight docs</a> ·
-    <a href="https://vectorize.io/what-is-agent-memory">What is agent memory</a>
-  </p>
+  MIT licensed · built on <a href="https://github.com/vectorize-io/hindsight">Hindsight</a>
+  from Vectorize<br>
+  <a href="https://github.com/WaifuPuller/MemoLint">source</a> ·
+  <a href="https://youtu.be/jWx0-Nl4BRk">demo</a> ·
+  <a href="https://hindsight.vectorize.io/">docs</a> ·
+  <a href="https://vectorize.io/what-is-agent-memory">what is agent memory</a>
 </footer>
 
 <script>
-  // Copy buttons. navigator.clipboard can reject, so fall back to selecting the text.
   document.querySelectorAll(".copy").forEach(function (b) {
     b.addEventListener("click", function () {
-      var text = b.getAttribute("data-copy");
-      var done = function () {
-        b.textContent = "Copied"; b.classList.add("done");
-        setTimeout(function () { b.textContent = "Copy"; b.classList.remove("done"); }, 1600);
+      var t = b.getAttribute("data-copy"), label = b.textContent;
+      var ok = function () {
+        b.textContent = "copied"; b.classList.add("ok");
+        setTimeout(function () { b.textContent = label; b.classList.remove("ok"); }, 1500);
       };
-      try {
-        navigator.clipboard.writeText(text).then(done, function () { fallback(text, done); });
-      } catch (e) { fallback(text, done); }
+      try { navigator.clipboard.writeText(t).then(ok, function () { fb(t, ok); }); }
+      catch (e) { fb(t, ok); }
     });
   });
-  function fallback(text, done) {
-    var ta = document.createElement("textarea");
-    ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
-    document.body.appendChild(ta); ta.select();
-    try { document.execCommand("copy"); done(); } catch (e) {}
-    document.body.removeChild(ta);
+  function fb(t, ok) {
+    var a = document.createElement("textarea");
+    a.value = t; a.style.position = "fixed"; a.style.opacity = "0";
+    document.body.appendChild(a); a.select();
+    try { document.execCommand("copy"); ok(); } catch (e) {}
+    document.body.removeChild(a);
   }
-
-  // Tabs
-  var tabs = document.querySelectorAll('.tabs button');
+  var tabs = document.querySelectorAll(".tabs button");
   tabs.forEach(function (t) {
     t.addEventListener("click", function () {
       tabs.forEach(function (o) {
